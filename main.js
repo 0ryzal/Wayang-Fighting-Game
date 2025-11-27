@@ -102,6 +102,21 @@ const gameState = {
   hudEl: document.getElementById('hud'),
   menuEl: document.getElementById('menu')
 };
+const loadingEl = document.getElementById('loading-screen');
+// Klik di mana saja setelah siap untuk langsung masuk arena (skip menu)
+let loadingReady = false;
+window.addEventListener('click', ()=> {
+  if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
+    loadingEl.classList.add('hidden');
+    setTimeout(()=>{ loadingEl.style.display='none'; }, 450);
+    // Langsung mulai match tanpa menu
+    if (fighters.length >= 2) {
+      startMatch();
+    } else {
+      showMessage('Model belum siap, mohon tunggu...');
+    }
+  }
+});
 
 const keys = {};
 window.addEventListener('keydown', (e) => { keys[e.code] = true; });
@@ -156,26 +171,40 @@ loader.load(
     bbox.setFromObject(base);
     base.position.y -= bbox.min.y; // sekarang min.y = 0
 
-    // Tidak lagi pakai footOffset; baseY akan 0
-    createFighter(base, -6, 0);
-    createFighter(base, 6, Math.PI);
+    // Spawn dua fighter: P1 (kiri) dan P2 (kanan) sama-sama cermin horizontal
+    createFighter(base, -6, 0, true);
+    createFighter(base, 6, Math.PI, true);
 
     startBtn.disabled = false;
     startBtn.removeAttribute('disabled');
     startBtn.textContent = 'MULAI PERTARUNGAN';
     hideMessage();
+    if (loadingEl) {
+      const txtEl = loadingEl.querySelector('#loading-text');
+      if (txtEl) txtEl.textContent = 'SIAP - KLIK UNTUK MULAI';
+      loadingReady = true;
+    }
   },
   undefined,
   (err) => {
     console.error('Gagal memuat scene.gltf', err);
     showMessage('Gagal memuat model wayang. Pastikan file scene.gltf / scene.bin tersedia.');
     startBtn.textContent = 'MUATAN GAGAL';
+    if (loadingEl) {
+      const txtEl = loadingEl.querySelector('#loading-text');
+      if (txtEl) txtEl.textContent = 'GAGAL MEMUAT MODEL';
+      loadingReady = false;
+    }
   }
 );
 
-function createFighter(model, initialX, facing) {
+function createFighter(model, initialX, facing, mirrorX = false) {
   const group = new THREE.Group();
   const mesh = model.clone(true);
+  if (mirrorX) {
+    mesh.scale.x *= -1; // mirror secara horizontal
+    mesh.updateMatrixWorld(true);
+  }
   group.add(mesh);
   group.position.set(initialX, 0, 0);
   scene.add(group);
@@ -184,11 +213,15 @@ function createFighter(model, initialX, facing) {
     group,
     mesh,
     facing,
+    mirrored: mirrorX,
     attackTimer: 0,
     cooldown: 0,
     idlePhase: Math.random() * Math.PI * 2,
     blocking: false,
     baseY: 0,
+    airY: 0,
+    verticalVelocity: 0,
+    onGround: true,
     attackBox: new THREE.Box3(),
     bodyBox: new THREE.Box3()
   });
@@ -214,6 +247,7 @@ function startRound() {
     f.attackTimer = 0;
     f.cooldown = 0;
     f.verticalVelocity = 0; // untuk lompat
+    f.airY = 0;
     f.onGround = true;
     f.blockEffectTimer = 0;
   });
@@ -284,7 +318,7 @@ const attackDuration = 0.28;
 const attackCooldown = 0.45;
 const attackReach = 1.2;
 const gravity = 20;
-const jumpVelocity = 11; // lebih tinggi
+const jumpVelocity = 18; // jauh lebih tinggi (apex ~8u di atas tanah)
 
 function updateMovement(delta) {
   if (gameState.status !== 'fight') return;
@@ -327,7 +361,7 @@ function updateMovement(delta) {
 
   // attacks
   if (keys['KeyE']) triggerAttack(0);
-  if (keys['ShiftLeft'] || keys['ShiftRight']) triggerAttack(1);
+  if (keys['ArrowDown'] || keys['ArrowDown']) triggerAttack(1);
 
   // Jump input
   if (keys['KeyW'] && p1.onGround) {
@@ -407,21 +441,21 @@ function animateFighters(delta) {
     // Bobbing hanya ke atas (hilangkan komponen negatif agar kaki tidak menembus lantai)
     const bobRaw = Math.sin(f.idlePhase) * 0.1;
     const bob = bobRaw < 0 ? 0 : bobRaw;
-    // Physics lompat
+    // Physics lompat (integrasi posisi akumulatif)
     if (!f.onGround) {
-      f.verticalVelocity -= gravity * delta;
+      f.verticalVelocity -= gravity * delta; // percepatan gravitasi
+      f.airY += f.verticalVelocity * delta;  // integrasi posisi
+      if (f.airY <= 0) {
+        f.airY = 0;
+        f.verticalVelocity = 0;
+        f.onGround = true;
+      }
     }
-    let desiredY = f.baseY + bob + (f.verticalVelocity ? (f.verticalVelocity * delta) : 0);
-    if (desiredY <= f.baseY) {
-      desiredY = f.baseY;
-      f.verticalVelocity = 0;
-      f.onGround = true;
-    }
-    f.group.position.y = desiredY;
+    f.group.position.y = f.baseY + bob + f.airY;
 
     // Penyesuaian dinamis: jika setelah transform bbox.min.y < 0, geser ke atas
     const tempBox = new THREE.Box3().setFromObject(f.group);
-    if (tempBox.min.y < 0) {
+    if (f.onGround && tempBox.min.y < 0) {
       f.group.position.y += -tempBox.min.y;
       f.baseY = f.group.position.y; // perbarui baseY agar bobbing tetap konsisten
     }
