@@ -63,17 +63,16 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
-// Fullscreen background gunakan scene.background dengan path relatif aman,
-// dan fallback ke plane jika gagal memuat.
-{
+// Background loader dengan pilihan map (latar.jpg atau latar2.jpg)
+let selectedMap = './latar.jpg';
+function loadBackground(path) {
   const loaderTex = new THREE.TextureLoader();
-  const bgPath = './latar.jpg';
-  loaderTex.load(bgPath, (tex) => {
+  loaderTex.load(path, (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
-    scene.background = tex; // memenuhi viewport
+    scene.background = tex;
   }, undefined, () => {
-    console.warn('Gagal memuat latar.jpg, menggunakan fallback plane');
-    const tex2 = loaderTex.load(bgPath, (t2) => {
+    console.warn(`Gagal memuat ${path}, fallback plane`);
+    loaderTex.load(path, (t2) => {
       t2.colorSpace = THREE.SRGBColorSpace;
       const plane = new THREE.Mesh(
         new THREE.PlaneGeometry(60, 30),
@@ -84,6 +83,7 @@ scene.add(floor);
     });
   });
 }
+loadBackground(selectedMap);
 
 const loader = new GLTFLoader();
 const fighters = [];
@@ -103,6 +103,19 @@ const gameState = {
   menuEl: document.getElementById('menu')
 };
 const loadingEl = document.getElementById('loading-screen');
+const backMenuBtn = document.getElementById('back-menu-btn');
+// Map selection handlers (generalized to 5 maps)
+const mapButtons = [1,2,3,4,5].map(i => document.getElementById('map'+i));
+const mapPaths = ['./latar.jpg','./latar2.jpg','./latar3.jpg','./latar4.jpg','./latar5.jpg'];
+function setActiveMap(idx) {
+  if (idx < 1 || idx > mapPaths.length) return;
+  selectedMap = mapPaths[idx-1];
+  mapButtons.forEach((btn, i) => { if(btn) btn.classList.toggle('active', i === idx-1); });
+  loadBackground(selectedMap);
+}
+mapButtons.forEach((btn,i)=>{
+  if(btn) btn.addEventListener('click', (e)=>{ e.stopPropagation(); setActiveMap(i+1); });
+});
 // Klik di mana saja setelah siap untuk langsung masuk arena (skip menu)
 let loadingReady = false;
 window.addEventListener('click', ()=> {
@@ -233,6 +246,7 @@ function startMatch() {
   gameState.round = 1;
   gameState.menuEl.style.display = 'none';
   gameState.hudEl.style.display = 'block';
+  if (backMenuBtn) backMenuBtn.style.display='none';
   updateScoreDisplay();
   startRound();
 }
@@ -394,9 +408,13 @@ function updateCombat(delta) {
     const dir = idx === 0 ? 1 : -1;
     const boxCenter = f.group.position.clone();
     boxCenter.x += dir * attackReach;
+    // Atur tinggi serangan mengikuti ketinggian penyerang (mid-to-upper body)
+    const h = f.bodyBox.max.y - f.bodyBox.min.y;
+    const yMin = f.bodyBox.min.y + 0.45 * h;
+    const yMax = f.bodyBox.min.y + 0.95 * h;
     f.attackBox.set(
-      new THREE.Vector3(boxCenter.x - 0.4, 0, -0.5),
-      new THREE.Vector3(boxCenter.x + 0.4, 3.5, 0.5)
+      new THREE.Vector3(boxCenter.x - 0.4, yMin, -0.5),
+      new THREE.Vector3(boxCenter.x + 0.4, yMax, 0.5)
     );
   });
 
@@ -490,7 +508,7 @@ function animateFighters(delta) {
   if (debugEnabled) {
     const lines = fighters.map((f,i)=>{
       const penetration = f.bodyBox ? Math.min(0, f.bodyBox.min.y).toFixed(2) : 'n/a';
-      return `P${i+1} x:${f.group.position.x.toFixed(2)} y:${f.group.position.y.toFixed(2)} baseY:${f.baseY.toFixed(2)} atk:${f.attackTimer.toFixed(2)} cd:${f.cooldown.toFixed(2)} block:${f.blocking} pen:${penetration}`;
+      return `P${i+1} x:${f.group.position.x.toFixed(2)} y:${f.group.position.y.toFixed(2)} baseY:${f.baseY.toFixed(2)} air:${(f.airY||0).toFixed(2)} atk:${f.attackTimer.toFixed(2)} cd:${f.cooldown.toFixed(2)} grd:${f.onGround} pen:${penetration}`;
     });
     debugEl.textContent = lines.join('\n');
   }
@@ -531,6 +549,7 @@ function resolveWinner(forcedWinner) {
     showMessage(`${winnerText}\nP${finalWinner} MENANG MATCH! Tekan ENTER untuk mulai lagi.`);
     gameState.status = 'match-ended';
     sfx.win();
+    if (backMenuBtn) backMenuBtn.style.display='block';
   } else {
     showMessage(`${winnerText} Tekan ENTER untuk lanjut ke Ronde ${gameState.round + 1}.`);
   }
@@ -546,6 +565,24 @@ window.addEventListener('keydown', (e) => {
     }
   }
 });
+
+function returnToMenu() {
+  // Kembali ke pemilihan latar tanpa reload aset
+  gameState.status = 'menu';
+  gameState.hudEl.style.display = 'none';
+  if (loadingEl) {
+    loadingEl.style.display = 'flex';
+    loadingEl.classList.remove('hidden');
+    const txt = document.getElementById('loading-text');
+    if (txt) txt.textContent = 'PILIH LATAR & KLIK UNTUK MULAI';
+  }
+  if (backMenuBtn) backMenuBtn.style.display='none';
+  hideMessage();
+}
+
+if (backMenuBtn) {
+  backMenuBtn.addEventListener('click', (e)=> { e.stopPropagation(); returnToMenu(); });
+}
 
 const clock = new THREE.Clock();
 function tick() {
