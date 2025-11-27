@@ -184,6 +184,26 @@
       color: rgba(255,255,255,0.75);
     }
 
+    #score-display {
+      margin-top: 4px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--accent);
+      text-shadow: 0 0 10px rgba(255,223,90,0.5);
+    }
+
+    .score-stars {
+      min-width: 60px;
+      text-align: center;
+      font-size: 18px;
+      color: var(--accent);
+    }
+
     #message {
       bottom: 6%;
       display: none;
@@ -210,6 +230,11 @@
         <div id="round-panel">
           <div id="timer-display">99</div>
           <div id="round-display">BEST OF 3</div>
+          <div id="score-display">
+            <span id="score1" class="score-stars">☆☆</span>
+            <span>VS</span>
+            <span id="score2" class="score-stars">☆☆</span>
+          </div>
         </div>
         <div class="hp-box" style="text-align:right;">
           <div class="hp-label">P2 • ←/→ bergerak • Ctrl tangkis • Shift pukul</div>
