@@ -366,26 +366,26 @@ window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 // Idle animation frames
 const idleFrames = [
-  './textures/semar/idle/idle 1.png',
-  './textures/semar/idle/idle 2.png',
-  './textures/semar/idle/idle 3.png',
-  './textures/semar/idle/idle 4.png'
+  './textures/bagong/idle/idle 1.png',
+  './textures/bagong/idle/idle 2.png',
+  './textures/bagong/idle/idle 3.png',
+  './textures/bagong/idle/idle 4.png'
 ];
 
 // Punch animation frames
 const punchFrames = [
-  './textures/semar/punch/punch 1.png',
-  './textures/semar/punch/punch 2.png'
+  './textures/bagong/punch/punch 1.png',
+  './textures/bagong/punch/punch 2.png'
 ];
 
 // Walk animation frames
 const walkFrames = [
-  './textures/semar/walk/walk 1.png',
-  './textures/semar/walk/walk 2.png',
-  './textures/semar/walk/walk 3.png',
-  './textures/semar/walk/walk 4.png',
-  './textures/semar/walk/walk 5.png',
-  './textures/semar/walk/walk 6.png'
+  './textures/bagong/walk/walk 1.png',
+  './textures/bagong/walk/walk 2.png',
+  './textures/bagong/walk/walk 3.png',
+  './textures/bagong/walk/walk 4.png',
+  './textures/bagong/walk/walk 5.png',
+  './textures/bagong/walk/walk 6.png'
 ];
 
 const fighter1 = new Fighter2D(idleFrames, punchFrames, walkFrames, -3, true, 0);
