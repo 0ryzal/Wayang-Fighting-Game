@@ -365,7 +365,7 @@ let loadingReady = false;
 setTimeout(() => {
   loadingReady = true;
   const txtEl = document.getElementById('loading-text');
-  if (txtEl) txtEl.textContent = 'SIAP - KLIK UNTUK MULAI';
+  if (txtEl) txtEl.textContent = '';
 }, 1000);
 
 window.addEventListener('click', () => {
@@ -579,8 +579,8 @@ function update(delta) {
     fighter2.isWalking = true;
   }
   if (keys['ArrowUp']) fighter2.jump();
-  fighter2.blocking = !!(keys['ControlLeft'] || keys['ControlRight']);
-  if (keys['ArrowDown']) fighter2.attack();
+  fighter2.blocking = !!(keys['ControlLeft'] || keys['ArrowDown']);
+  if (keys['Slash']) fighter2.attack();
   
   fighter1.x = THREE.MathUtils.clamp(fighter1.x, -bound, bound);
   fighter2.x = THREE.MathUtils.clamp(fighter2.x, -bound, bound);
