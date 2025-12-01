@@ -399,12 +399,9 @@ setTimeout(() => {
   if (txtEl) txtEl.textContent = '';
 }, 1000);
 
+// Nonaktifkan lanjut dengan klik saat loading; wajib ENTER
 window.addEventListener('click', () => {
-  if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
-    loadingEl.classList.add('hidden');
-    setTimeout(() => { loadingEl.style.display = 'none'; }, 450);
-    if (mapSelectionEl) mapSelectionEl.style.display = 'flex';
-  }
+  // sengaja dikosongkan agar klik tidak melakukan apa-apa saat loading
 });
 
 const startBtn = document.getElementById('start-btn');
@@ -557,6 +554,15 @@ if (backMenuBtn) {
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter') {
+    // Saat loading screen aktif, ENTER membuka pemilihan map
+    if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
+      loadingEl.classList.add('hidden');
+      setTimeout(() => { loadingEl.style.display = 'none'; }, 450);
+      if (mapSelectionEl) mapSelectionEl.style.display = 'flex';
+      return;
+    }
+
+    // Alur setelah ronde/match
     if (gameState.status === 'match-ended') {
       startMatch();
     } else if (gameState.status === 'ended') {
