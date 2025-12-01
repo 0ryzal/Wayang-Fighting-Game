@@ -50,7 +50,7 @@ const sfx = {
   jump: () => { const a = createTone(440, 160, 'sine', 0.25); a.play(); }
 };
 
-let selectedMap = './latar.jpg';
+let selectedMap = './map/latar.jpg';
 const backgroundMesh = new THREE.Mesh(
   new THREE.PlaneGeometry(20 * aspect, 20),
   new THREE.MeshBasicMaterial({ color: 0x222222 })
@@ -58,9 +58,34 @@ const backgroundMesh = new THREE.Mesh(
 backgroundMesh.position.z = -5;
 scene.add(backgroundMesh);
 
+// Brighten background with additive white overlay
+let backgroundBrightness = 0.0; // 0.0 (clear), raise to ~0.6 to brighten
+const backgroundBrightener = new THREE.Mesh(
+  backgroundMesh.geometry,
+  new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: backgroundBrightness,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  })
+);
+backgroundBrightener.position.z = -4.9; // slightly in front of background
+scene.add(backgroundBrightener);
+
+function setBackgroundBrightness(value) {
+  backgroundBrightness = THREE.MathUtils.clamp(value, 0, 0.7);
+  backgroundBrightener.material.opacity = backgroundBrightness;
+}
+
 function loadBackground(path) {
   new THREE.TextureLoader().load(path, (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
+    backgroundMesh.material.map = tex;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
     backgroundMesh.material.map = tex;
     backgroundMesh.material.needsUpdate = true;
   });
@@ -315,18 +340,24 @@ const gameState = {
 const loadingEl = document.getElementById('loading-screen');
 const backMenuBtn = document.getElementById('back-menu-btn');
 
-const mapButtons = [1, 2, 3, 4, 5].map(i => document.getElementById('map' + i));
-const mapPaths = ['./latar.jpg', './latar2.jpg', './latar3.jpg', './latar4.jpg', './latar5.jpg'];
+const mapSelectionEl = document.getElementById('map-selection');
+const mapPaths = ['./map/latar.jpg', './map/latar2.png', './map/latar3.png', './map/latar4.png', './map/latar5.png'];
 
-function setActiveMap(idx) {
+function chooseMap(idx) {
   if (idx < 1 || idx > mapPaths.length) return;
   selectedMap = mapPaths[idx - 1];
-  mapButtons.forEach((btn, i) => { if (btn) btn.classList.toggle('active', i === idx - 1); });
   loadBackground(selectedMap);
+  if (mapSelectionEl) mapSelectionEl.style.display = 'none';
+  startMatch();
 }
 
-mapButtons.forEach((btn, i) => {
-  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); setActiveMap(i + 1); });
+const mapThumbs = Array.from(document.querySelectorAll('#map-selection .map-choice'));
+mapThumbs.forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const idx = parseInt(btn.getAttribute('data-index') || '1', 10);
+    chooseMap(idx);
+  });
 });
 
 const keys = {};
@@ -372,7 +403,7 @@ window.addEventListener('click', () => {
   if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
     loadingEl.classList.add('hidden');
     setTimeout(() => { loadingEl.style.display = 'none'; }, 450);
-    startMatch();
+    if (mapSelectionEl) mapSelectionEl.style.display = 'flex';
   }
 });
 
@@ -515,12 +546,7 @@ function resolveWinner(forcedWinner) {
 function returnToMenu() {
   gameState.status = 'menu';
   if (gameState.hudEl) gameState.hudEl.style.display = 'none';
-  if (loadingEl) {
-    loadingEl.style.display = 'flex';
-    loadingEl.classList.remove('hidden');
-    const txt = document.getElementById('loading-text');
-    if (txt) txt.textContent = 'PILIH LATAR & KLIK UNTUK MULAI';
-  }
+  if (mapSelectionEl) mapSelectionEl.style.display = 'flex';
   if (backMenuBtn) backMenuBtn.style.display = 'none';
   hideMessage();
 }
