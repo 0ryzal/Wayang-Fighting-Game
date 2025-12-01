@@ -566,8 +566,8 @@ function update(delta) {
     fighter1.isWalking = true;
   }
   if (keys['KeyW']) fighter1.jump();
-  fighter1.blocking = !!keys['KeyQ'];
-  if (keys['KeyE']) fighter1.attack();
+  fighter1.blocking = !!keys['KeyS'];
+  if (keys['Space']) fighter1.attack();
   
   // Fighter 2 controls
   if (keys['ArrowLeft']) {
