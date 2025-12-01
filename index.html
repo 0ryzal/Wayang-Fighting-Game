@@ -7,264 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --accent: #ffdf5a;
-      --accent-dark: #f7931a;
-      --bg-dark: #08060e;
-      --hud-height: 90px;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: 'Rajdhani', system-ui, sans-serif;
-      background-color: #020203;
-      color: #fff;
-      overflow: hidden;
-    }
-
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.08), transparent 40%),
-                  radial-gradient(circle at 80% 30%, rgba(255,175,0,0.12), transparent 35%),
-                  radial-gradient(circle at 50% 80%, rgba(53,92,125,0.25), transparent 40%),
-                  linear-gradient(130deg, #0d0c1d 0%, #090711 55%, #05030a 100%);
-      z-index: -3;
-    }
-
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: linear-gradient(rgba(255,255,255,0.03) 2px, transparent 2px);
-      background-size: 100% 4px;
-      opacity: 0.6;
-      mix-blend-mode: screen;
-      z-index: -2;
-      pointer-events: none;
-    }
-
-    canvas {
-      display: block;
-    }
-
-    #ui-root {
-      pointer-events: none;
-      position: fixed;
-      inset: 0;
-    }
-
-    #menu,
-    #message {
-      pointer-events: auto;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(8,6,14,0.92);
-      padding: 24px 32px;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 30px 60px rgba(0,0,0,0.75);
-      max-width: 440px;
-      text-align: center;
-      backdrop-filter: blur(8px);
-    }
-
-    #menu {
-      top: 12%;
-    }
-
-    #menu h1 {
-      margin: 0 0 10px;
-      letter-spacing: 6px;
-      font-size: 34px;
-    }
-
-    #menu p { margin: 4px 0; }
-
-    #controls-list {
-      list-style: none;
-      padding: 0;
-      margin: 18px 0 0;
-      text-align: left;
-      line-height: 1.8;
-      font-size: 15px;
-    }
-
-    #controls-list span {
-      color: var(--accent);
-      font-weight: 600;
-    }
-
-    button {
-      pointer-events: auto;
-      border: none;
-      border-radius: 6px;
-      padding: 10px 20px;
-      margin-top: 16px;
-      background: linear-gradient(120deg, var(--accent), var(--accent-dark));
-      color: #111;
-      font-weight: 700;
-      letter-spacing: 1px;
-      cursor: pointer;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.45);
-    }
-
-    button:hover { filter: brightness(1.05); }
-
-    #hud {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: var(--hud-height);
-      padding: 12px 28px 0;
-      display: none;
-      pointer-events: none;
-    }
-
-    .hud-inner {
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 32px;
-    }
-
-    .hp-box {
-      width: 320px;
-      background: rgba(0,0,0,0.65);
-      border-radius: 10px;
-      padding: 8px 12px;
-      border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-    }
-
-    .hp-label {
-      font-size: 13px;
-      letter-spacing: 1px;
-      color: rgba(255,255,255,0.8);
-    }
-
-    .hp-frame {
-      margin-top: 6px;
-      height: 22px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #330000, #160002);
-      padding: 3px;
-    }
-
-    .hp-bar {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, #3bff64, #ffee58, #ff6a5c);
-      width: 100%;
-      transition: width 180ms ease-out;
-    }
-
-    #round-panel {
-      text-align: center;
-      min-width: 140px;
-    }
-
-    #timer-display {
-      font-size: 40px;
-      font-weight: 700;
-      color: var(--accent);
-      text-shadow: 0 0 12px rgba(255,223,90,0.6);
-    }
-
-    #round-display {
-      font-size: 14px;
-      letter-spacing: 2px;
-      color: rgba(255,255,255,0.75);
-    }
-
-    #score-display {
-      margin-top: 4px;
-      font-size: 16px;
-      font-weight: 600;
-      letter-spacing: 2px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      color: var(--accent);
-      text-shadow: 0 0 10px rgba(255,223,90,0.5);
-    }
-
-    .score-stars {
-      min-width: 60px;
-      text-align: center;
-      font-size: 18px;
-      color: var(--accent);
-    }
-
-    #message {
-      bottom: 6%;
-      display: none;
-    }
-    #back-menu-btn {
-      position: fixed;
-      top: calc(var(--hud-height) + 12px);
-      left: 24px;
-      z-index: 50;
-      padding: 10px 18px;
-      font-size: 14px;
-      background: linear-gradient(120deg,#ffdf5a,#f7931a);
-      color:#111;
-      font-weight:700;
-      border:none;
-      border-radius:8px;
-      cursor:pointer;
-      box-shadow:0 10px 25px rgba(0,0,0,0.6);
-      display:none;
-      pointer-events:auto;
-    }
-    #back-menu-btn:hover {filter:brightness(1.06);}
-
-    /* Pre-fight overlay */
-    #pre-fight {
-      position: fixed;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 9500;
-      pointer-events: none;
-      background: url('./fight.png') center center / cover no-repeat #000;
-    }
-    #pre-fight img {
-      display: none; /* gunakan background cover agar full screen */
-    }
-
-    #loading-screen {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100vw; height: 100vh; min-height:100dvh;
-      background: url('./loading.png') center center / cover no-repeat #000;
-      z-index: 9999;
-      pointer-events: auto;
-      transition: opacity 0.4s ease;
-      margin: 0; padding: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-    }
-    #loading-screen.hidden {opacity:0; pointer-events:none;}
-    #loading-logo {display:none;} /* tidak dipakai, gambar jadi background penuh */
-    #loading-text {font-size:18px; letter-spacing:4px; color:#ffdf5a; font-weight:600; text-shadow:0 0 12px rgba(255,223,90,0.4); margin-bottom:110px;}    
-      #map-select {position: absolute; bottom: 24px; display: flex; gap: 12px;}
-      .map-btn {pointer-events:auto; border:none; background:rgba(255,255,255,0.1); color:#fff; padding:10px 16px; border-radius:8px; cursor:pointer; backdrop-filter: blur(6px); border:1px solid rgba(255,255,255,0.18);} 
-      .map-btn.active {background:linear-gradient(120deg,#ffdf5a,#f7931a); color:#111; font-weight:700;}
-    @keyframes pulse {0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-    .spinner-ring {width:86px; height:86px; border:6px solid rgba(255,255,255,0.12); border-top-color:#ffdf5a; border-radius:50%; animation:spin 1s linear infinite;}
-    @keyframes spin {to{transform:rotate(360deg)}}
-    #loading-enter-btn {pointer-events:auto; opacity:0; transform:translateY(10px); transition:opacity .5s ease,transform .5s ease; border:none; background:linear-gradient(120deg,#ffdf5a,#f7931a); color:#111; font-weight:700; padding:14px 34px; letter-spacing:2px; border-radius:40px; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.6);}
-    #loading-enter-btn.visible {opacity:1; transform:translateY(0);}
-  </style>
+  <link rel="stylesheet" href="styles.css">
   <script type="importmap">
     {
       "imports": {
@@ -275,48 +18,23 @@
   </script>
 </head>
 <body>
+  <script>console.log('[index] inline script - page loaded');</script>
   <canvas id="scene"></canvas>
   <div id="ui-root">
     <div id="loading-screen">
-      <div id="loading-text">MEMUAT ASET...</div>
-    </div>
-    <div id="map-selection" style="display:none; position:fixed; inset:0; z-index: 9000; display:none; align-items:center; justify-content:center; background:rgba(8,6,14,0.85); backdrop-filter: blur(6px);">
-      <div style="background:rgba(0,0,0,0.5); padding:20px 22px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 30px 60px rgba(0,0,0,0.75); max-width:880px; width:90%;">
-        <h2 style="margin:0 0 12px; letter-spacing:2px; text-align:center;">PILIH ARENA</h2>
-        <div id="map-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:14px;">
-          <button class="map-choice" data-index="1" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar.jpg" alt="Arena 1" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-          <button class="map-choice" data-index="2" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar2.png" alt="Arena 2" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-          <button class="map-choice" data-index="3" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar3.png" alt="Arena 3" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-          <button class="map-choice" data-index="4" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar4.png" alt="Arena 4" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-          <button class="map-choice" data-index="5" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar5.png" alt="Arena 5" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-          <button class="map-choice" data-index="5" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar6.png" alt="Arena 5" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-          <button class="map-choice" data-index="5" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar7.png" alt="Arena 5" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-          <button class="map-choice" data-index="5" style="padding:0; border:none; background:none; cursor:pointer; border-radius:10px; overflow:hidden; border:2px solid rgba(255,255,255,0.15);">
-            <img src="./map/latar8.png" alt="Arena 5" style="width:100%; height:120px; object-fit:cover; display:block;" />
-          </button>
-
-        </div>
-        <p style="margin:12px 0 0; text-align:center; opacity:0.85;">Klik gambar untuk memilih arena dan mulai.</p>
+      <div id="loading-text"></div>
+      <div style="margin:18px 0 0; text-align:center;">
+        <button id="start-btn" disabled aria-label="Start (loading)"></button>
       </div>
     </div>
+    <!-- map selection is created dynamically at runtime to avoid DOM/z-index conflicts -->
     <div id="hud">
       <div class="hud-inner">
         <div class="hp-box">
-          <div class="hp-label">P1 • A/D bergerak • S tangkis • SPACE pukul</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <img id="p1-thumb" class="char-hud-thumb" src="./textures/bagong/idle/idle 1.png" alt="P1" />
+            <div class="hp-label">P1 • A/D bergerak • S tangkis • SPACE pukul</div>
+          </div>
           <div class="hp-frame"><div id="hp1" class="hp-bar"></div></div>
         </div>
         <div id="round-panel">
@@ -329,25 +47,44 @@
           </div>
         </div>
         <div class="hp-box" style="text-align:right;">
-          <div class="hp-label">P2 • ←/→ bergerak • Ctrl tangkis • ArrowDown pukul</div>
+          <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-bottom:6px;">
+            <div class="hp-label">P2 • ←/→ bergerak • Ctrl tangkis • ArrowDown pukul</div>
+            <img id="p2-thumb" class="char-hud-thumb" src="./textures/bagong/idle/idle 1.png" alt="P2" />
+          </div>
           <div class="hp-frame"><div id="hp2" class="hp-bar"></div></div>
         </div>
       </div>
     </div>
 
-    <div id="menu">
-      <h1>WAYANG VS</h1>
-      <p>Masuki arena candi dan tunjukkan jurus pamungkasmu.</p>
-      <ul id="controls-list">
-        <li><span>P1</span> A/D untuk bergerak, S menangkis, SPACE menyerang</li>
-        <li><span>P2</span> ←/→ untuk bergerak, Ctrl menangkis, Shift menyerang</li>
-      </ul>
-      <button id="start-btn" disabled>MEMUAT MODEL...</button>
-    </div>
+    <!-- Removed Wayang Arena main menu; using the old loading.png start screen instead -->
 
     <div id="message"></div>
     <div id="pre-fight"><img src="./fight.png" alt="FIGHT" /></div>
     <button id="back-menu-btn">Kembali Pilih Latar</button>
+
+    <!-- character selection is created dynamically at runtime -->
+
+    <!-- Static Pause Menu -->
+    <div id="pause-menu" class="overlay-center" style="display:none;">
+      <div class="overlay-card">
+        <h2>PAUSED</h2>
+        <button id="pause-continue">Continue</button>
+        <button id="pause-select">Select Character</button>
+        <button id="pause-exit">Exit to Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Static End Menu -->
+    <div id="end-menu" class="overlay-center" style="display:none;">
+      <div class="overlay-card">
+        <h2 id="end-winner">P1 MENANG</h2>
+        <div style="display:flex;gap:8px;justify-content:center;">
+          <button id="end-restart">Mulai Ulang</button>
+          <button id="end-restart-change">Ganti Karakter</button>
+          <button id="end-exit">Keluar ke Menu</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./main.js"></script>
