@@ -1,19 +1,27 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x050505, 0.04);
 
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
-camera.position.set(0, 4, 13);
-scene.add(camera);
-// Audio setup (WebAudio via Three.AudioListener)
+const aspect = window.innerWidth / window.innerHeight;
+const viewHeight = 10;
+const camera = new THREE.OrthographicCamera(
+  -viewHeight * aspect / 2,
+  viewHeight * aspect / 2,
+  viewHeight / 2,
+  -viewHeight / 2,
+  0.1,
+  100
+);
+camera.position.z = 10;
+
 const listener = new THREE.AudioListener();
 camera.add(listener);
+
 function createTone(freq, durationMs = 140, type = 'sine', gain = 0.25) {
   const ctx = listener.context;
   const sampleRate = ctx.sampleRate;
@@ -26,8 +34,7 @@ function createTone(freq, durationMs = 140, type = 'sine', gain = 0.25) {
     const phase = 2 * Math.PI * freq * t;
     let v = Math.sin(phase);
     if (type === 'square') v = Math.sign(v);
-    else if (type === 'triangle') v = 2*Math.asin(Math.sin(phase))/Math.PI;
-    else if (type === 'saw') v = 2*(t*freq - Math.floor(0.5 + t*freq));
+    else if (type === 'triangle') v = 2 * Math.asin(Math.sin(phase)) / Math.PI;
     data[i] = v * env * gain;
   }
   const audio = new THREE.Audio(listener);
@@ -35,6 +42,7 @@ function createTone(freq, durationMs = 140, type = 'sine', gain = 0.25) {
   audio.setLoop(false);
   return audio;
 }
+
 const sfx = {
   punch: () => { const a = createTone(320, 120, 'triangle', 0.35); a.play(); },
   block: () => { const a = createTone(180, 90, 'square', 0.28); a.play(); },
@@ -42,51 +50,252 @@ const sfx = {
   jump: () => { const a = createTone(440, 160, 'sine', 0.25); a.play(); }
 };
 
-resizeRenderer();
-
-// lighting
-scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-const keyLight = new THREE.DirectionalLight(0xfff6da, 1.2);
-keyLight.position.set(8, 12, 6);
-scene.add(keyLight);
-const rimLight = new THREE.DirectionalLight(0x4dabff, 0.8);
-rimLight.position.set(-6, 10, -4);
-scene.add(rimLight);
-
-// arena floor
-const floorTex = new THREE.TextureLoader().load('https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=60');
-floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
-floorTex.repeat.set(3, 3);
-const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, metalness: 0.2, roughness: 0.9 });
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(50, 30), floorMat);
-floor.rotation.x = -Math.PI / 2;
-floor.receiveShadow = true;
-scene.add(floor);
-
-// Background loader dengan pilihan map (latar.jpg atau latar2.jpg)
 let selectedMap = './latar.jpg';
+const backgroundMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(20 * aspect, 20),
+  new THREE.MeshBasicMaterial({ color: 0x222222 })
+);
+backgroundMesh.position.z = -5;
+scene.add(backgroundMesh);
+
 function loadBackground(path) {
-  const loaderTex = new THREE.TextureLoader();
-  loaderTex.load(path, (tex) => {
+  new THREE.TextureLoader().load(path, (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
-    scene.background = tex;
-  }, undefined, () => {
-    console.warn(`Gagal memuat ${path}, fallback plane`);
-    loaderTex.load(path, (t2) => {
-      t2.colorSpace = THREE.SRGBColorSpace;
-      const plane = new THREE.Mesh(
-        new THREE.PlaneGeometry(60, 30),
-        new THREE.MeshBasicMaterial({ map: t2, depthWrite: false })
-      );
-      plane.position.set(0, 10, -20);
-      scene.add(plane);
-    });
+    backgroundMesh.material.map = tex;
+    backgroundMesh.material.needsUpdate = true;
   });
 }
 loadBackground(selectedMap);
 
-const loader = new GLTFLoader();
-const fighters = [];
+const floorMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 0.5),
+  new THREE.MeshBasicMaterial({ color: 0x3a2a1a })
+);
+floorMesh.position.y = -4;
+floorMesh.position.z = -1;
+scene.add(floorMesh);
+
+class Fighter2D {
+  constructor(idleFrames, punchFrames, walkFrames, startX, facingRight, playerIndex) {
+    this.playerIndex = playerIndex;
+    this.facingRight = facingRight;
+    this.startX = startX;
+    this.currentAnim = 'idle';
+    this.attackTimer = 0;
+    this.cooldown = 0;
+    this.blocking = false;
+    this.blockEffectTimer = 0;
+    this.hitFlashTimer = 0; // timer untuk efek flash putih saat terkena hit
+    this.x = startX;
+    this.y = -3;
+    this.baseY = -3;
+    this.velocityY = 0;
+    this.onGround = true;
+    this.isWalking = false; // track jika karakter sedang jalan
+    
+    // Animation frame tracking
+    this.idleFrameIndex = 0;
+    this.idleFrameTimer = 0;
+    this.idleFrameSpeed = 0.15; // waktu per frame dalam detik
+    
+    // Punch animation frame tracking
+    this.punchFrameIndex = 0;
+    this.punchFrameTimer = 0;
+    this.punchFrameSpeed = 0.1; // waktu per frame punch
+    
+    // Walk animation frame tracking
+    this.walkFrameIndex = 0;
+    this.walkFrameTimer = 0;
+    this.walkFrameSpeed = 0.08; // waktu per frame walk
+    
+    // Load idle animation frames
+    this.idleTextures = [];
+    const loader = new THREE.TextureLoader();
+    idleFrames.forEach((path) => {
+      const tex = loader.load(path, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.magFilter = THREE.LinearFilter;
+        t.minFilter = THREE.LinearFilter;
+      });
+      this.idleTextures.push(tex);
+    });
+    
+    // Load punch animation frames
+    this.punchTextures = [];
+    punchFrames.forEach((path) => {
+      const tex = loader.load(path, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.magFilter = THREE.LinearFilter;
+        t.minFilter = THREE.LinearFilter;
+      });
+      this.punchTextures.push(tex);
+    });
+    
+    // Load walk animation frames
+    this.walkTextures = [];
+    walkFrames.forEach((path) => {
+      const tex = loader.load(path, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        t.magFilter = THREE.LinearFilter;
+        t.minFilter = THREE.LinearFilter;
+      });
+      this.walkTextures.push(tex);
+    });
+    
+    const spriteMaterial = new THREE.MeshBasicMaterial({
+      map: this.idleTextures[0],
+      transparent: true,
+      side: THREE.DoubleSide,
+      alphaTest: 0.1
+    });
+    
+    // Sprite height 4 units, aspect ratio akan di-set otomatis
+    this.spriteHeight = 4;
+    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(3, 4), spriteMaterial);
+    this.mesh.position.set(startX, this.y + 0.5, 0);
+    scene.add(this.mesh);
+  }
+  
+  update(delta) {
+    if (this.cooldown > 0) this.cooldown -= delta;
+    if (this.attackTimer > 0) this.attackTimer -= delta;
+    if (this.blockEffectTimer > 0) this.blockEffectTimer -= delta;
+    if (this.hitFlashTimer > 0) this.hitFlashTimer -= delta;
+    
+    if (!this.onGround) {
+      this.velocityY -= 30 * delta;
+      this.y += this.velocityY * delta;
+      if (this.y <= this.baseY) {
+        this.y = this.baseY;
+        this.velocityY = 0;
+        this.onGround = true;
+      }
+    }
+    
+    this.mesh.position.x = this.x;
+    this.mesh.position.y = this.y + 1;
+    
+    // Switch texture berdasarkan state
+    if (this.attackTimer > 0) {
+      // Animasi punch
+      this.punchFrameTimer += delta;
+      if (this.punchFrameTimer >= this.punchFrameSpeed) {
+        this.punchFrameTimer = 0;
+        this.punchFrameIndex = (this.punchFrameIndex + 1) % this.punchTextures.length;
+      }
+      this.mesh.material.map = this.punchTextures[this.punchFrameIndex];
+      this.mesh.material.needsUpdate = true;
+      // Mirror punch
+      this.mesh.scale.x = this.facingRight ? 1 : -1;
+    } else if (this.isWalking && this.onGround) {
+      // Reset punch dan idle frame saat walk
+      this.punchFrameIndex = 0;
+      this.punchFrameTimer = 0;
+      this.idleFrameIndex = 0;
+      this.idleFrameTimer = 0;
+      
+      // Animasi walk
+      this.walkFrameTimer += delta;
+      if (this.walkFrameTimer >= this.walkFrameSpeed) {
+        this.walkFrameTimer = 0;
+        this.walkFrameIndex = (this.walkFrameIndex + 1) % this.walkTextures.length;
+      }
+      this.mesh.material.map = this.walkTextures[this.walkFrameIndex];
+      this.mesh.material.needsUpdate = true;
+      // Mirror walk
+      this.mesh.scale.x = this.facingRight ? 1 : -1;
+    } else {
+      // Reset punch dan walk frame saat idle
+      this.punchFrameIndex = 0;
+      this.punchFrameTimer = 0;
+      this.walkFrameIndex = 0;
+      this.walkFrameTimer = 0;
+      
+      // Animasi idle
+      this.idleFrameTimer += delta;
+      if (this.idleFrameTimer >= this.idleFrameSpeed) {
+        this.idleFrameTimer = 0;
+        this.idleFrameIndex = (this.idleFrameIndex + 1) % this.idleTextures.length;
+      }
+      this.mesh.material.map = this.idleTextures[this.idleFrameIndex];
+      this.mesh.material.needsUpdate = true;
+      // Mirror idle
+      this.mesh.scale.x = this.facingRight ? 1 : -1;
+    }
+    
+    this.mesh.rotation.z = 0;
+    
+    if (this.blockEffectTimer > 0) {
+      const pulse = Math.sin((this.blockEffectTimer / 0.25) * Math.PI) * 0.15;
+      this.mesh.scale.y = 1 + pulse;
+    } else {
+      this.mesh.scale.y = 1;
+    }
+    
+    if (this.blocking && this.attackTimer <= 0) {
+      this.mesh.scale.y = 0.9;
+      this.mesh.position.y = this.y + 0.8;
+    }
+    
+    // Efek flash putih saat terkena hit
+    if (this.hitFlashTimer > 0) {
+      // Buat sprite sangat putih terang
+      const flashIntensity = this.hitFlashTimer / 0.2;
+      const brightness = 5 + flashIntensity * 10; // jauh lebih terang
+      this.mesh.material.color.setRGB(brightness, brightness, brightness);
+    } else {
+      this.mesh.material.color.setRGB(1, 1, 1);
+    }
+    
+    // Reset walking state setelah update
+    this.isWalking = false;
+  }
+  
+  takeHit() {
+    this.hitFlashTimer = 0.2; // durasi flash putih lebih lama
+  }
+  
+  attack() {
+    if (this.cooldown > 0 || this.attackTimer > 0) return false;
+    this.attackTimer = 0.3;
+    this.cooldown = 0.5;
+    sfx.punch();
+    return true;
+  }
+  
+  jump() {
+    if (!this.onGround) return;
+    this.velocityY = 12;
+    this.onGround = false;
+    sfx.jump();
+  }
+  
+  reset() {
+    this.x = this.startX;
+    this.y = this.baseY;
+    this.velocityY = 0;
+    this.onGround = true;
+    this.attackTimer = 0;
+    this.cooldown = 0;
+    this.blocking = false;
+  }
+  
+  getHitbox() {
+    return { x: this.x - 0.6, y: this.y - 0.5, width: 1.2, height: 3 };
+  }
+  
+  getAttackBox() {
+    const offsetX = this.facingRight ? 0.8 : -1.8;
+    return { x: this.x + offsetX, y: this.y, width: 1, height: 2 };
+  }
+}
+
+function boxCollision(box1, box2) {
+  return box1.x < box2.x + box2.width &&
+         box1.x + box1.width > box2.x &&
+         box1.y < box2.y + box2.height &&
+         box1.y + box1.height > box2.y;
+}
 
 const gameState = {
   status: 'menu',
@@ -102,222 +311,94 @@ const gameState = {
   hudEl: document.getElementById('hud'),
   menuEl: document.getElementById('menu')
 };
+
 const loadingEl = document.getElementById('loading-screen');
 const backMenuBtn = document.getElementById('back-menu-btn');
-// Map selection handlers (generalized to 5 maps)
-const mapButtons = [1,2,3,4,5].map(i => document.getElementById('map'+i));
-const mapPaths = ['./latar.jpg','./latar2.jpg','./latar3.jpg','./latar4.jpg','./latar5.jpg'];
+
+const mapButtons = [1, 2, 3, 4, 5].map(i => document.getElementById('map' + i));
+const mapPaths = ['./latar.jpg', './latar2.jpg', './latar3.jpg', './latar4.jpg', './latar5.jpg'];
+
 function setActiveMap(idx) {
   if (idx < 1 || idx > mapPaths.length) return;
-  selectedMap = mapPaths[idx-1];
-  mapButtons.forEach((btn, i) => { if(btn) btn.classList.toggle('active', i === idx-1); });
+  selectedMap = mapPaths[idx - 1];
+  mapButtons.forEach((btn, i) => { if (btn) btn.classList.toggle('active', i === idx - 1); });
   loadBackground(selectedMap);
 }
-mapButtons.forEach((btn,i)=>{
-  if(btn) btn.addEventListener('click', (e)=>{ e.stopPropagation(); setActiveMap(i+1); });
-});
-// Klik di mana saja setelah siap untuk langsung masuk arena (skip menu)
-let loadingReady = false;
-window.addEventListener('click', ()=> {
-  if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
-    loadingEl.classList.add('hidden');
-    setTimeout(()=>{ loadingEl.style.display='none'; }, 450);
-    // Langsung mulai match tanpa menu
-    if (fighters.length >= 2) {
-      startMatch();
-    } else {
-      showMessage('Model belum siap, mohon tunggu...');
-    }
-  }
+
+mapButtons.forEach((btn, i) => {
+  if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); setActiveMap(i + 1); });
 });
 
 const keys = {};
 window.addEventListener('keydown', (e) => { keys[e.code] = true; });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-// Debug overlay (toggle dengan F3) membantu memeriksa posisi Y agar tidak tenggelam
-const debugEl = document.createElement('div');
-debugEl.id = 'debug-overlay';
-debugEl.style.cssText = 'position:fixed;left:8px;top:8px;padding:6px 10px;background:rgba(0,0,0,0.55);color:#0ff;font:12px monospace;z-index:9999;border:1px solid #088;display:none;max-width:260px;white-space:pre-line;';
-document.body.appendChild(debugEl);
-let debugEnabled = false;
-window.addEventListener('keydown', (e)=>{
-  if (e.code === 'F3') {
-    debugEnabled = !debugEnabled;
-    debugEl.style.display = debugEnabled ? 'block' : 'none';
+// Idle animation frames
+const idleFrames = [
+  './textures/semar/idle/idle 1.png',
+  './textures/semar/idle/idle 2.png',
+  './textures/semar/idle/idle 3.png',
+  './textures/semar/idle/idle 4.png'
+];
+
+// Punch animation frames
+const punchFrames = [
+  './textures/semar/punch/punch 1.png',
+  './textures/semar/punch/punch 2.png'
+];
+
+// Walk animation frames
+const walkFrames = [
+  './textures/semar/walk/walk 1.png',
+  './textures/semar/walk/walk 2.png',
+  './textures/semar/walk/walk 3.png',
+  './textures/semar/walk/walk 4.png',
+  './textures/semar/walk/walk 5.png',
+  './textures/semar/walk/walk 6.png'
+];
+
+const fighter1 = new Fighter2D(idleFrames, punchFrames, walkFrames, -3, true, 0);
+const fighter2 = new Fighter2D(idleFrames, punchFrames, walkFrames, 3, false, 1);
+const fighters = [fighter1, fighter2];
+
+let loadingReady = false;
+setTimeout(() => {
+  loadingReady = true;
+  const txtEl = document.getElementById('loading-text');
+  if (txtEl) txtEl.textContent = 'SIAP - KLIK UNTUK MULAI';
+}, 1000);
+
+window.addEventListener('click', () => {
+  if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
+    loadingEl.classList.add('hidden');
+    setTimeout(() => { loadingEl.style.display = 'none'; }, 450);
+    startMatch();
   }
 });
 
 const startBtn = document.getElementById('start-btn');
-startBtn.addEventListener('click', () => {
-  if (fighters.length === 0) {
-    showMessage('Model wayang belum selesai dimuat. Mohon tunggu beberapa detik.');
-    return;
-  }
-  startMatch();
-});
-
-typeText(gameState.messageEl, '');
-
-const modelUrl = new URL('./scene.gltf', window.location.href);
-
-loader.load(
-  modelUrl.href,
-  (gltf) => {
-    const base = gltf.scene;
-    base.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-        // Gunakan DoubleSide supaya wayang (geometri tipis) tidak hilang saat membalik arah
-        if (obj.material) obj.material.side = THREE.DoubleSide;
-      }
-    });
-
-    const bbox = new THREE.Box3().setFromObject(base);
-    const size = new THREE.Vector3();
-    bbox.getSize(size);
-    const scale = 4 / size.y;
-    base.scale.setScalar(scale);
-
-    // Setelah scaling, geser seluruh model agar bagian paling bawah tepat di y=0
-    bbox.setFromObject(base);
-    base.position.y -= bbox.min.y; // sekarang min.y = 0
-
-    // Spawn dua fighter: P1 (kiri) dan P2 (kanan) sama-sama cermin horizontal
-    createFighter(base, -6, 0, true);
-    createFighter(base, 6, Math.PI, true);
-
-    startBtn.disabled = false;
-    startBtn.removeAttribute('disabled');
-    startBtn.textContent = 'MULAI PERTARUNGAN';
-    hideMessage();
-    if (loadingEl) {
-      const txtEl = loadingEl.querySelector('#loading-text');
-      if (txtEl) txtEl.textContent = 'SIAP - KLIK UNTUK MULAI';
-      loadingReady = true;
-    }
-  },
-  undefined,
-  (err) => {
-    console.error('Gagal memuat scene.gltf', err);
-    showMessage('Gagal memuat model wayang. Pastikan file scene.gltf / scene.bin tersedia.');
-    startBtn.textContent = 'MUATAN GAGAL';
-    if (loadingEl) {
-      const txtEl = loadingEl.querySelector('#loading-text');
-      if (txtEl) txtEl.textContent = 'GAGAL MEMUAT MODEL';
-      loadingReady = false;
-    }
-  }
-);
-
-function createFighter(model, initialX, facing, mirrorX = false) {
-  const group = new THREE.Group();
-  const mesh = model.clone(true);
-  if (mirrorX) {
-    mesh.scale.x *= -1; // mirror secara horizontal
-    mesh.updateMatrixWorld(true);
-  }
-  group.add(mesh);
-  group.position.set(initialX, 0, 0);
-  scene.add(group);
-
-  fighters.push({
-    group,
-    mesh,
-    facing,
-    mirrored: mirrorX,
-    attackTimer: 0,
-    cooldown: 0,
-    idlePhase: Math.random() * Math.PI * 2,
-    blocking: false,
-    baseY: 0,
-    airY: 0,
-    verticalVelocity: 0,
-    onGround: true,
-    attackBox: new THREE.Box3(),
-    bodyBox: new THREE.Box3()
-  });
+if (startBtn) {
+  startBtn.disabled = false;
+  startBtn.textContent = 'MULAI PERTARUNGAN';
+  startBtn.addEventListener('click', () => startMatch());
 }
 
-function startMatch() {
-  // Reset total match
-  gameState.roundWins = [0,0];
-  gameState.round = 1;
-  gameState.menuEl.style.display = 'none';
-  gameState.hudEl.style.display = 'block';
-  if (backMenuBtn) backMenuBtn.style.display='none';
-  updateScoreDisplay();
-  startRound();
-}
-
-function startRound() {
-  gameState.status = 'fight';
-  gameState.hp = [100, 100];
-  gameState.timer = 99;
-  fighters.forEach((f, idx) => {
-    f.group.position.set(idx === 0 ? -3.5 : 3.5, f.baseY, 0);
-    f.group.rotation.y = idx === 0 ? 0 : Math.PI;
-    f.attackTimer = 0;
-    f.cooldown = 0;
-    f.verticalVelocity = 0; // untuk lompat
-    f.airY = 0;
-    f.onGround = true;
-    f.blockEffectTimer = 0;
-  });
-  updateHPBars();
-  showMessage(`RONDE ${gameState.round}`);
-  setTimeout(()=> hideMessage(), 1300);
-}
-
-function hideMessage() {
-  gameState.messageEl.style.display = 'none';
-}
-
-function showMessage(text) {
-  gameState.messageEl.textContent = text;
-  gameState.messageEl.style.display = 'block';
-}
-
-function updateHPBars() {
-  gameState.hpEls[0].style.width = `${(gameState.hp[0] / gameState.maxHp) * 100}%`;
-  gameState.hpEls[1].style.width = `${(gameState.hp[1] / gameState.maxHp) * 100}%`;
-}
-
-function update(delta) {
-  if (fighters.length < 2) return;
-
-  if (gameState.status === 'fight') {
-    gameState.timer = Math.max(0, gameState.timer - delta);
-    gameState.timerEl.textContent = Math.floor(gameState.timer).toString().padStart(2, '0');
-
-    if (gameState.timer === 0) {
-      resolveWinner();
-    }
-  }
-
-  updateMovement(delta);
-  updateCombat(delta);
-  animateFighters(delta);
-}
-
-// Spark hit effect system
 const sparks = [];
-function spawnSpark(position) {
-  const geo = new THREE.SphereGeometry(0.06, 8, 8);
+function spawnSpark(x, y) {
+  const geo = new THREE.CircleGeometry(0.15, 8);
   const mat = new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true });
-  const m = new THREE.Mesh(geo, mat);
-  m.position.copy(position);
-  scene.add(m);
-  sparks.push({ mesh: m, life: 0.22 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, 1);
+  scene.add(mesh);
+  sparks.push({ mesh, life: 0.25 });
 }
 
 function updateSparks(delta) {
   for (let i = sparks.length - 1; i >= 0; i--) {
     const s = sparks[i];
     s.life -= delta;
-    s.mesh.scale.multiplyScalar(1 + delta * 4);
-    s.mesh.material.opacity = Math.max(0, s.life / 0.22);
+    s.mesh.scale.multiplyScalar(1 + delta * 5);
+    s.mesh.material.opacity = Math.max(0, s.life / 0.25);
     if (s.life <= 0) {
       scene.remove(s.mesh);
       s.mesh.geometry.dispose();
@@ -327,232 +408,125 @@ function updateSparks(delta) {
   }
 }
 
-const speed = 4;
-const attackDuration = 0.28;
-const attackCooldown = 0.45;
-const attackReach = 1.2;
-const gravity = 20;
-const jumpVelocity = 18; // jauh lebih tinggi (apex ~8u di atas tanah)
+function startMatch() {
+  gameState.roundWins = [0, 0];
+  gameState.round = 1;
+  if (gameState.menuEl) gameState.menuEl.style.display = 'none';
+  if (gameState.hudEl) gameState.hudEl.style.display = 'block';
+  if (backMenuBtn) backMenuBtn.style.display = 'none';
+  updateScoreDisplay();
+  startRound();
+}
 
-function updateMovement(delta) {
-  if (gameState.status !== 'fight') return;
+function startRound() {
+  gameState.status = 'fight';
+  gameState.hp = [100, 100];
+  gameState.timer = 99;
+  fighter1.reset();
+  fighter1.x = -3;
+  fighter1.facingRight = true;
+  fighter2.reset();
+  fighter2.x = 3;
+  fighter2.facingRight = false;
+  updateHPBars();
+  showMessage('RONDE ' + gameState.round);
+  setTimeout(() => hideMessage(), 1300);
+}
 
-  const moveAmount = speed * delta;
-  const p1 = fighters[0];
-  const p2 = fighters[1];
+function hideMessage() {
+  if (gameState.messageEl) gameState.messageEl.style.display = 'none';
+}
 
-  const p1Dir = (keys['KeyD'] && !keys['KeyA']) ? 1 : (keys['KeyA'] && !keys['KeyD']) ? -1 : 0;
-  const p2Dir = (keys['ArrowRight'] && !keys['ArrowLeft']) ? 1 : (keys['ArrowLeft'] && !keys['ArrowRight']) ? -1 : 0;
-
-  // P1 move
-  if (p1Dir === -1) p1.group.position.x -= moveAmount;
-  if (p1Dir === 1) p1.group.position.x += moveAmount;
-  // P2 move
-  if (p2Dir === -1) p2.group.position.x -= moveAmount;
-  if (p2Dir === 1) p2.group.position.x += moveAmount;
-
-  const bound = 8;
-  fighters.forEach((f) => {
-    f.group.position.x = THREE.MathUtils.clamp(f.group.position.x, -bound, bound);
-  });
-
-  // face based on current movement; if idle, face opponent
-  if (p1Dir !== 0) {
-    p1.group.rotation.y = p1Dir > 0 ? 0 : Math.PI;
-  } else {
-    p1.group.rotation.y = p1.group.position.x <= p2.group.position.x ? 0 : Math.PI;
-  }
-
-  if (p2Dir !== 0) {
-    p2.group.rotation.y = p2Dir > 0 ? 0 : Math.PI;
-  } else {
-    p2.group.rotation.y = p2.group.position.x >= p1.group.position.x ? Math.PI : 0;
-  }
-
-  // blocking state
-  p1.blocking = !!keys['KeyQ'];
-  p2.blocking = !!keys['ControlLeft'] || !!keys['ControlRight'];
-
-  // attacks
-  if (keys['KeyE']) triggerAttack(0);
-  if (keys['ArrowDown'] || keys['ArrowDown']) triggerAttack(1);
-
-  // Jump input
-  if (keys['KeyW'] && p1.onGround) {
-    p1.verticalVelocity = jumpVelocity;
-    p1.onGround = false;
-    sfx.jump();
-  }
-  if ((keys['ArrowUp']) && p2.onGround) {
-    p2.verticalVelocity = jumpVelocity;
-    p2.onGround = false;
-    sfx.jump();
+function showMessage(text) {
+  if (gameState.messageEl) {
+    gameState.messageEl.textContent = text;
+    gameState.messageEl.style.display = 'block';
   }
 }
 
-function triggerAttack(index) {
-  if (gameState.status !== 'fight') return;
-  const fighter = fighters[index];
-  if (fighter.cooldown > 0) return;
-  fighter.attackTimer = attackDuration;
-  fighter.cooldown = attackCooldown;
-  sfx.punch();
+function updateHPBars() {
+  if (gameState.hpEls[0]) gameState.hpEls[0].style.width = ((gameState.hp[0] / gameState.maxHp) * 100) + '%';
+  if (gameState.hpEls[1]) gameState.hpEls[1].style.width = ((gameState.hp[1] / gameState.maxHp) * 100) + '%';
 }
 
-function updateCombat(delta) {
-  fighters.forEach((f, idx) => {
-    if (f.cooldown > 0) f.cooldown -= delta;
-    if (f.attackTimer > 0) f.attackTimer = Math.max(0, f.attackTimer - delta);
-    // bodyBox dihitung ulang setelah kemungkinan penyesuaian posisi di animateFighters
-    f.bodyBox.setFromObject(f.group);
-    const dir = idx === 0 ? 1 : -1;
-    const boxCenter = f.group.position.clone();
-    boxCenter.x += dir * attackReach;
-    // Atur tinggi serangan mengikuti ketinggian penyerang (mid-to-upper body)
-    const h = f.bodyBox.max.y - f.bodyBox.min.y;
-    const yMin = f.bodyBox.min.y + 0.45 * h;
-    const yMax = f.bodyBox.min.y + 0.95 * h;
-    f.attackBox.set(
-      new THREE.Vector3(boxCenter.x - 0.4, yMin, -0.5),
-      new THREE.Vector3(boxCenter.x + 0.4, yMax, 0.5)
-    );
-  });
-
-  // collision P1 hitting P2
-  if (fighters[0].attackTimer > 0 && fighters[0].attackBox.intersectsBox(fighters[1].bodyBox)) {
-    // spawn spark at attackBox center
-    const center = new THREE.Vector3();
-    fighters[1].bodyBox.getCenter(center);
-    spawnSpark(center);
-    applyDamage(1, fighters[1].blocking);
-    fighters[0].attackTimer = 0;
-  }
-
-  if (fighters[1].attackTimer > 0 && fighters[1].attackBox.intersectsBox(fighters[0].bodyBox)) {
-    const center = new THREE.Vector3();
-    fighters[0].bodyBox.getCenter(center);
-    spawnSpark(center);
-    applyDamage(0, fighters[0].blocking);
-    fighters[1].attackTimer = 0;
-  }
+function updateScoreDisplay() {
+  const stars = (wins) => '\u2605'.repeat(wins) + '\u2606'.repeat(2 - wins);
+  if (gameState.scoreEls[0]) gameState.scoreEls[0].textContent = stars(gameState.roundWins[0]);
+  if (gameState.scoreEls[1]) gameState.scoreEls[1].textContent = stars(gameState.roundWins[1]);
 }
 
 function applyDamage(targetIndex, blocking) {
   if (blocking) {
-    // Blok sukses: tidak ada pengurangan HP sama sekali
-    const f = fighters[targetIndex];
-    f.blockEffectTimer = 0.25; // efek visual blok
+    fighters[targetIndex].blockEffectTimer = 0.25;
     sfx.block();
     return;
   }
   const dmg = 12;
   gameState.hp[targetIndex] = Math.max(0, gameState.hp[targetIndex] - dmg);
+  fighters[targetIndex].takeHit(); // trigger efek flash putih
   updateHPBars();
   if (gameState.hp[targetIndex] === 0) {
     resolveWinner(targetIndex === 0 ? 2 : 1);
   }
 }
 
-function animateFighters(delta) {
-  fighters.forEach((f, idx) => {
-    f.idlePhase += delta * 2.5;
-    // Bobbing hanya ke atas (hilangkan komponen negatif agar kaki tidak menembus lantai)
-    const bobRaw = Math.sin(f.idlePhase) * 0.1;
-    const bob = bobRaw < 0 ? 0 : bobRaw;
-    // Physics lompat (integrasi posisi akumulatif)
-    if (!f.onGround) {
-      f.verticalVelocity -= gravity * delta; // percepatan gravitasi
-      f.airY += f.verticalVelocity * delta;  // integrasi posisi
-      if (f.airY <= 0) {
-        f.airY = 0;
-        f.verticalVelocity = 0;
-        f.onGround = true;
-      }
-    }
-    f.group.position.y = f.baseY + bob + f.airY;
-
-    // Penyesuaian dinamis: jika setelah transform bbox.min.y < 0, geser ke atas
-    const tempBox = new THREE.Box3().setFromObject(f.group);
-    if (f.onGround && tempBox.min.y < 0) {
-      f.group.position.y += -tempBox.min.y;
-      f.baseY = f.group.position.y; // perbarui baseY agar bobbing tetap konsisten
-    }
-
-    const punchLean = f.attackTimer > 0 ? (idx === 0 ? -0.35 : 0.35) : 0;
-    f.mesh.rotation.z = THREE.MathUtils.lerp(f.mesh.rotation.z, punchLean, 0.25);
-
-    const punchOffset = f.attackTimer > 0 ? (idx === 0 ? 0.25 : -0.25) : 0;
-    f.mesh.position.z = THREE.MathUtils.lerp(f.mesh.position.z, punchOffset, 0.25);
-
-    // Efek visual blok (scale pulse + tint emissive jika ada)
-    if (f.blockEffectTimer && f.blockEffectTimer > 0) {
-      f.blockEffectTimer -= delta;
-      const pulse = Math.sin((f.blockEffectTimer / 0.25) * Math.PI) * 0.12;
-      f.group.scale.set(1 + pulse, 1 + pulse, 1 + pulse);
-      f.mesh.traverse(obj => {
-        if (obj.isMesh && obj.material && obj.material.emissive) {
-          obj.material.emissive.setHex(0x2266ff);
-        }
-      });
-      if (f.blockEffectTimer <= 0) {
-        f.group.scale.set(1,1,1);
-        f.mesh.traverse(obj => {
-          if (obj.isMesh && obj.material && obj.material.emissive) {
-            obj.material.emissive.setHex(0x000000);
-          }
-        });
-      }
-    }
-  });
-
-  if (debugEnabled) {
-    const lines = fighters.map((f,i)=>{
-      const penetration = f.bodyBox ? Math.min(0, f.bodyBox.min.y).toFixed(2) : 'n/a';
-      return `P${i+1} x:${f.group.position.x.toFixed(2)} y:${f.group.position.y.toFixed(2)} baseY:${f.baseY.toFixed(2)} air:${(f.airY||0).toFixed(2)} atk:${f.attackTimer.toFixed(2)} cd:${f.cooldown.toFixed(2)} grd:${f.onGround} pen:${penetration}`;
-    });
-    debugEl.textContent = lines.join('\n');
-  }
-}
-
 function resolveWinner(forcedWinner) {
   if (gameState.status !== 'fight') return;
   gameState.status = 'ended';
-
   let winnerText = '';
   let roundWinnerIndex = -1;
+  
   if (forcedWinner) {
     roundWinnerIndex = forcedWinner - 1;
-    winnerText = `P${forcedWinner} MENANG RONDE ${gameState.round}!`;
+    winnerText = 'P' + forcedWinner + ' MENANG RONDE ' + gameState.round + '!';
   } else {
     const diff = gameState.hp[0] - gameState.hp[1];
     if (diff === 0) {
-      winnerText = `SERII RONDE ${gameState.round}!`; // seri tidak menambah kemenangan
+      winnerText = 'SERI RONDE ' + gameState.round + '!';
     } else if (diff > 0) {
       roundWinnerIndex = 0;
-      winnerText = `P1 MENANG RONDE ${gameState.round}!`;
+      winnerText = 'P1 MENANG RONDE ' + gameState.round + '!';
     } else {
       roundWinnerIndex = 1;
-      winnerText = `P2 MENANG RONDE ${gameState.round}!`;
+      winnerText = 'P2 MENANG RONDE ' + gameState.round + '!';
     }
   }
+  
   if (roundWinnerIndex >= 0) {
     gameState.roundWins[roundWinnerIndex] += 1;
     updateScoreDisplay();
   }
-
+  
   const p1Wins = gameState.roundWins[0];
   const p2Wins = gameState.roundWins[1];
   const matchEnded = p1Wins === 2 || p2Wins === 2;
-
+  
   if (matchEnded) {
     const finalWinner = p1Wins === 2 ? 1 : 2;
-    showMessage(`${winnerText}\nP${finalWinner} MENANG MATCH! Tekan ENTER untuk mulai lagi.`);
+    showMessage(winnerText + ' P' + finalWinner + ' MENANG MATCH! Tekan ENTER untuk mulai lagi.');
     gameState.status = 'match-ended';
     sfx.win();
-    if (backMenuBtn) backMenuBtn.style.display='block';
+    if (backMenuBtn) backMenuBtn.style.display = 'block';
   } else {
-    showMessage(`${winnerText} Tekan ENTER untuk lanjut ke Ronde ${gameState.round + 1}.`);
+    showMessage(winnerText + ' Tekan ENTER untuk lanjut ke Ronde ' + (gameState.round + 1) + '.');
   }
+}
+
+function returnToMenu() {
+  gameState.status = 'menu';
+  if (gameState.hudEl) gameState.hudEl.style.display = 'none';
+  if (loadingEl) {
+    loadingEl.style.display = 'flex';
+    loadingEl.classList.remove('hidden');
+    const txt = document.getElementById('loading-text');
+    if (txt) txt.textContent = 'PILIH LATAR & KLIK UNTUK MULAI';
+  }
+  if (backMenuBtn) backMenuBtn.style.display = 'none';
+  hideMessage();
+}
+
+if (backMenuBtn) {
+  backMenuBtn.addEventListener('click', (e) => { e.stopPropagation(); returnToMenu(); });
 }
 
 window.addEventListener('keydown', (e) => {
@@ -566,22 +540,76 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-function returnToMenu() {
-  // Kembali ke pemilihan latar tanpa reload aset
-  gameState.status = 'menu';
-  gameState.hudEl.style.display = 'none';
-  if (loadingEl) {
-    loadingEl.style.display = 'flex';
-    loadingEl.classList.remove('hidden');
-    const txt = document.getElementById('loading-text');
-    if (txt) txt.textContent = 'PILIH LATAR & KLIK UNTUK MULAI';
+function update(delta) {
+  if (gameState.status !== 'fight') return;
+  
+  gameState.timer = Math.max(0, gameState.timer - delta);
+  if (gameState.timerEl) {
+    gameState.timerEl.textContent = Math.floor(gameState.timer).toString().padStart(2, '0');
   }
-  if (backMenuBtn) backMenuBtn.style.display='none';
-  hideMessage();
-}
-
-if (backMenuBtn) {
-  backMenuBtn.addEventListener('click', (e)=> { e.stopPropagation(); returnToMenu(); });
+  
+  if (gameState.timer === 0) {
+    resolveWinner();
+    return;
+  }
+  
+  const speed = 5;
+  const bound = 7;
+  
+  // Fighter 1 controls
+  if (keys['KeyA']) {
+    fighter1.x -= speed * delta;
+    fighter1.isWalking = true;
+  }
+  if (keys['KeyD']) {
+    fighter1.x += speed * delta;
+    fighter1.isWalking = true;
+  }
+  if (keys['KeyW']) fighter1.jump();
+  fighter1.blocking = !!keys['KeyQ'];
+  if (keys['KeyE']) fighter1.attack();
+  
+  // Fighter 2 controls
+  if (keys['ArrowLeft']) {
+    fighter2.x -= speed * delta;
+    fighter2.isWalking = true;
+  }
+  if (keys['ArrowRight']) {
+    fighter2.x += speed * delta;
+    fighter2.isWalking = true;
+  }
+  if (keys['ArrowUp']) fighter2.jump();
+  fighter2.blocking = !!(keys['ControlLeft'] || keys['ControlRight']);
+  if (keys['ArrowDown']) fighter2.attack();
+  
+  fighter1.x = THREE.MathUtils.clamp(fighter1.x, -bound, bound);
+  fighter2.x = THREE.MathUtils.clamp(fighter2.x, -bound, bound);
+  
+  fighter1.facingRight = fighter1.x < fighter2.x;
+  fighter2.facingRight = fighter2.x < fighter1.x;
+  
+  fighter1.update(delta);
+  fighter2.update(delta);
+  
+  if (fighter1.attackTimer > 0.15 && fighter1.attackTimer < 0.25) {
+    const attackBox = fighter1.getAttackBox();
+    const hitbox = fighter2.getHitbox();
+    if (boxCollision(attackBox, hitbox)) {
+      spawnSpark(fighter2.x, fighter2.y + 1);
+      applyDamage(1, fighter2.blocking);
+      fighter1.attackTimer = 0.1;
+    }
+  }
+  
+  if (fighter2.attackTimer > 0.15 && fighter2.attackTimer < 0.25) {
+    const attackBox = fighter2.getAttackBox();
+    const hitbox = fighter1.getHitbox();
+    if (boxCollision(attackBox, hitbox)) {
+      spawnSpark(fighter1.x, fighter1.y + 1);
+      applyDamage(0, fighter1.blocking);
+      fighter2.attackTimer = 0.1;
+    }
+  }
 }
 
 const clock = new THREE.Clock();
@@ -594,23 +622,12 @@ function tick() {
 }
 tick();
 
-window.addEventListener('resize', resizeRenderer);
-function resizeRenderer() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  renderer.setSize(width, height);
-  if (camera) {
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-  }
-}
-
-function typeText(el, txt) {
-  el.textContent = txt;
-}
-
-function updateScoreDisplay() {
-  const stars = (wins) => '★'.repeat(wins) + '☆'.repeat(2 - wins);
-  gameState.scoreEls[0].textContent = stars(gameState.roundWins[0]);
-  gameState.scoreEls[1].textContent = stars(gameState.roundWins[1]);
-}
+window.addEventListener('resize', () => {
+  const newAspect = window.innerWidth / window.innerHeight;
+  camera.left = -viewHeight * newAspect / 2;
+  camera.right = viewHeight * newAspect / 2;
+  camera.top = viewHeight / 2;
+  camera.bottom = -viewHeight / 2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
