@@ -227,6 +227,21 @@
     }
     #back-menu-btn:hover {filter:brightness(1.06);}
 
+    /* Pre-fight overlay */
+    #pre-fight {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9500;
+      pointer-events: none;
+      background: url('./fight.png') center center / cover no-repeat #000;
+    }
+    #pre-fight img {
+      display: none; /* gunakan background cover agar full screen */
+    }
+
     #loading-screen {
       position: fixed;
       top: 0; left: 0;
@@ -331,6 +346,7 @@
     </div>
 
     <div id="message"></div>
+    <div id="pre-fight"><img src="./fight.png" alt="FIGHT" /></div>
     <button id="back-menu-btn">Kembali Pilih Latar</button>
   </div>
 

@@ -341,6 +341,7 @@ const loadingEl = document.getElementById('loading-screen');
 const backMenuBtn = document.getElementById('back-menu-btn');
 
 const mapSelectionEl = document.getElementById('map-selection');
+const preFightEl = document.getElementById('pre-fight');
 const mapPaths = ['./map/latar.jpg', './map/latar2.png', './map/latar3.png', './map/latar4.png', './map/latar5.png'];
 
 function chooseMap(idx) {
@@ -348,7 +349,15 @@ function chooseMap(idx) {
   selectedMap = mapPaths[idx - 1];
   loadBackground(selectedMap);
   if (mapSelectionEl) mapSelectionEl.style.display = 'none';
-  startMatch();
+  if (preFightEl) {
+    preFightEl.style.display = 'flex';
+    setTimeout(() => {
+      preFightEl.style.display = 'none';
+      startMatch();
+    }, 3000);
+  } else {
+    startMatch();
+  }
 }
 
 const mapThumbs = Array.from(document.querySelectorAll('#map-selection .map-choice'));
