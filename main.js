@@ -1,1750 +1,1787 @@
 import * as THREE from 'three';
 
 // ==========================================
-// 1. FACTORY ORNAMEN 3D (Procedural Meshes)
+// WAYANG OPEN WORLD - JAWA & BALI
+// 3D Open World with 2D Sprite Characters
+// Featuring: Borobudur, Prambanan, Lempuyang, Danau Batur
 // ==========================================
 
-// Material standar untuk batu candi (Abu-abu gelap & kasar)
-const stoneMat = new THREE.MeshStandardMaterial({ 
-  color: 0x666666, 
-  roughness: 0.9, 
-  metalness: 0.1,
-  flatShading: true 
-});
+// ===== GAME STATE =====
+const gameState = {
+  status: 'loading', // loading, charSelect, playing, paused
+  selectedCharacter: 'bagong',
+  isPointerLocked: false,
+  currentLocation: 'Borobudur Temple'
+};
 
-// Material untuk atap jerami/kayu (untuk map Bali/Danau)
-const woodMat = new THREE.MeshStandardMaterial({ 
-  color: 0x3d2817, 
-  roughness: 1.0, 
-  flatShading: true 
-});
+// ===== COLLISION BOXES =====
+const collisionBoxes = [];
 
-// A. STUPA (Untuk Map 2 - Borobudur)
-function createStupa(x, z, scale = 1) {
-  const group = new THREE.Group();
-  
-  // Alas (Kotak bertumpuk)
-  const b1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 1.2), stoneMat); b1.position.y = 0.15;
-  const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.9), stoneMat); b2.position.y = 0.45;
-  // Badan (Silinder Gembung)
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.6, 8), stoneMat); body.position.y = 0.9;
-  // Puncak (Cone)
-  const top = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.8, 8), stoneMat); top.position.y = 1.6;
-
-  group.add(b1, b2, body, top);
-  
-  // Aktifkan bayangan untuk semua anak mesh
-  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
-  
-  group.position.set(x, -3.8, z); // Nempel tanah
-  group.scale.set(scale, scale, scale);
-  return group;
-}
-
-// B. CANDI BENTAR / GERBANG TERBELAH (Untuk Map 3)
-function createCandiBentar(x, z, scale = 1) {
-  const group = new THREE.Group();
-  
-  function createSide(isLeft) {
-    const sideGroup = new THREE.Group();
-    // Tumpukan kotak yang makin kecil ke atas
-    for(let i=0; i<6; i++) {
-      const w = 0.8 - (i * 0.1);
-      const h = 0.4;
-      const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), stoneMat);
-      box.position.y = i * h;
-      // Geser sedikit biar rata tengah di sisi dalam (efek terbelah)
-      box.position.x = isLeft ? -w/4 : w/4; 
-      sideGroup.add(box);
-    }
-    return sideGroup;
+// ===== CHARACTER DATA WITH LORE =====
+const characterData = {
+  bagong: {
+    name: 'Bagong',
+    title: 'Si Jenaka Bijaksana',
+    lore: 'Bagong adalah putra bungsu Semar dan adik dari Gareng serta Petruk. Meski bertubuh gemuk dan tampak lamban, Bagong memiliki kecerdasan luar biasa. Ia sering berpura-pura bodoh namun selalu memberikan nasihat bijak melalui humor. Dalam pewayangan, Bagong melambangkan kejujuran dan keberanian menyuarakan kebenaran tanpa takut.',
+    idle: ['./textures/bagong/idle/idle 1.png', './textures/bagong/idle/idle 2.png', './textures/bagong/idle/idle 3.png', './textures/bagong/idle/idle 4.png'],
+    walk: ['./textures/bagong/walk/walk 1.png', './textures/bagong/walk/walk 2.png', './textures/bagong/walk/walk 3.png', './textures/bagong/walk/walk 4.png', './textures/bagong/walk/walk 5.png', './textures/bagong/walk/walk 6.png']
+  },
+  gareng: {
+    name: 'Gareng',
+    title: 'Si Cacat yang Setia',
+    lore: 'Gareng atau Nala Gareng adalah putra sulung Semar. Tubuhnya penuh cacat: mata juling, tangan bengkok, dan kaki pincang. Namun setiap cacatnya melambangkan filosofi mendalam - mata juling berarti melihat kebenaran sejati, tangan bengkok berarti tidak suka mengambil yang bukan haknya, kaki pincang berarti berhati-hati dalam melangkah. Gareng adalah simbol kesetiaan dan kesabaran.',
+    idle: ['./textures/gareng/idle/grng idle 1.png', './textures/gareng/idle/grng idle 2.png', './textures/gareng/idle/grng idle 3.png', './textures/gareng/idle/grng idle 4.png', './textures/gareng/idle/grng idle 5.png'],
+    walk: ['./textures/gareng/walk/grng walk 1.png', './textures/gareng/walk/grng walk 2.png', './textures/gareng/walk/grng walk 3.png', './textures/gareng/walk/grng walk 4.png', './textures/gareng/walk/grng walk 5.png']
+  },
+  petruk: {
+    name: 'Petruk',
+    title: 'Si Hidung Panjang',
+    lore: 'Petruk atau Kanthong Bolong adalah putra kedua Semar. Ciri khasnya adalah hidung panjang dan tubuh tinggi kurus. Ia paling humoris dan suka bergurau, namun di balik candaannya tersimpan kebijaksanaan. Nama Kanthong Bolong (kantong berlubang) melambangkan sifat dermawan yang tidak menyimpan harta untuk diri sendiri. Petruk adalah simbol kegembiraan dan kedermawanan.',
+    idle: ['./textures/petruk/idle/petrul idle 1.png', './textures/petruk/idle/petrul idle 2.png', './textures/petruk/idle/petrul idle 3.png', './textures/petruk/idle/petrul idle 4.png'],
+    walk: ['./textures/petruk/walk/petruk walk 1.png', './textures/petruk/walk/petruk walk 2.png', './textures/petruk/walk/petruk walk 3.png', './textures/petruk/walk/petruk walk 4.png', './textures/petruk/walk/petruk walk 5.png']
+  },
+  semar: {
+    name: 'Semar',
+    title: 'Sang Pamomong Agung',
+    lore: 'Semar atau Batara Ismaya adalah dewa yang turun ke dunia menjadi pamomong (pengasuh) para kesatria Pandawa. Ia adalah kakak Batara Guru namun memilih hidup sederhana di bumi. Tubuhnya gemuk dengan wajah tua namun seperti bayi, melambangkan kebijaksanaan yang melampaui usia. Semar adalah penjaga kebenaran dan keadilan, sosok suci yang menyamar sebagai rakyat jelata. Ia adalah simbol kebijaksanaan tertinggi dalam pewayangan Jawa.',
+    idle: ['./textures/semar/idle/semar idle 1.png', './textures/semar/idle/semar idle 2.png', './textures/semar/idle/semar idle 3.png', './textures/semar/idle/semar idle 4.png'],
+    walk: ['./textures/semar/walk/semar walk 1.png', './textures/semar/walk/semar walk 2.png', './textures/semar/walk/semar walk 3.png', './textures/semar/walk/semar walk 4.png', './textures/semar/walk/semar walk 5.png', './textures/semar/walk/semar walk 6.png']
   }
+};
 
-  const left = createSide(true); left.position.x = -0.5;
-  const right = createSide(false); right.position.x = 0.5;
-  
-  group.add(left, right);
-  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
-  group.position.set(x, -3.8, z);
-  group.scale.set(scale, scale*1.5, scale);
-  return group;
-}
-
-// C. PRAMBANAN STYLE (Untuk Map 4 - Tinggi Ramping)
-function createPrambanan(x, z, scale = 1) {
-  const group = new THREE.Group();
-  
-  // Kaki
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), stoneMat); base.position.y = 0.5;
-  // Badan Utama (Tinggi)
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2, 6), stoneMat); body.position.y = 2;
-  // Atap Bertingkat
-  const roof1 = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.5, 6), stoneMat); roof1.position.y = 3.2;
-  const roof2 = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 6), stoneMat); roof2.position.y = 3.6;
-
-  group.add(base, body, roof1, roof2);
-  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
-  
-  group.position.set(x, -3.8, z);
-  group.scale.set(scale, scale, scale);
-  return group;
-}
-
-// D. MERU / PAGODA (Untuk Map 5 - Atap Ijuk Bertumpuk)
-function createMeru(x, z, scale = 1) {
-  const group = new THREE.Group();
-  
-  // Tiang dasar
-  const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1, 0.6), stoneMat); base.position.y = 0.5;
-  group.add(base);
-
-  // Atap bertumpuk (Meru) - 5 tingkat
-  for(let i=0; i<5; i++) {
-    const size = 1.2 - (i * 0.15);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(size, 0.4, 4), woodMat); // Pakai material kayu/ijuk
-    roof.position.y = 1.2 + (i * 0.5);
-    roof.rotation.y = Math.PI / 4; // Biar miring kayak atap
-    group.add(roof);
+// ===== LANDMARK LOCATIONS =====
+const landmarks = {
+  borobudur: {
+    position: { x: 0, y: 0, z: 0 },
+    name: 'Candi Borobudur',
+    color: 0x8B8B7A
+  },
+  prambanan: {
+    position: { x: 200, y: 0, z: 200 },
+    name: 'Candi Prambanan',
+    color: 0x9B7653
+  },
+  lempuyang: {
+    position: { x: -200, y: 0, z: 200 },
+    name: 'Pura Lempuyang',
+    color: 0x708090
+  },
+  batur: {
+    position: { x: 0, y: 0, z: -250 },
+    name: 'Danau Batur',
+    color: 0x4682B4
   }
+};
 
-  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
-  group.position.set(x, -3.8, z);
-  group.scale.set(scale, scale, scale);
-  return group;
-}
+// ===== POI (Points of Interest) WITH HISTORY =====
+const pointsOfInterest = [
+  // === BOROBUDUR ===
+  {
+    id: 'borobudur-main',
+    position: { x: 0, y: 0, z: 45 },
+    title: 'Candi Borobudur',
+    description: `Candi Borobudur adalah candi Buddha terbesar di dunia, dibangun pada abad ke-8 oleh Dinasti Syailendra. Nama "Borobudur" berasal dari "Vihara Buddha Uhr" yang berarti biara Buddha di atas bukit.
 
-// E. OBOR (Untuk Map 1 atau Umum)
-function createObor(x, z) {
-  const group = new THREE.Group();
-  const tiang = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2, 8), new THREE.MeshStandardMaterial({color: 0x333333}));
-  tiang.position.y = 1;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), new THREE.MeshStandardMaterial({color: 0x552200}));
-  head.position.y = 2;
-  
-  // Cahaya api lokal
-  const fire = new THREE.PointLight(0xffaa00, 2, 4);
-  fire.position.set(0, 2.2, 0);
+SEJARAH:
+Dibangun sekitar tahun 750-850 Masehi, candi ini ditinggalkan setelah pusat kerajaan Jawa pindah ke Jawa Timur akibat letusan Gunung Merapi. Candi terkubur abu vulkanik selama berabad-abad hingga ditemukan kembali oleh Sir Thomas Stamford Raffles pada tahun 1814.
 
-  group.add(tiang, head, fire);
-  group.traverse(o => { if(o.isMesh) { o.castShadow = true; }});
-  group.position.set(x, -3.8, z);
-  return group;
-}
+FILOSOFI:
+Candi memiliki 10 tingkat yang melambangkan perjalanan spiritual menuju pencerahan:
+• Kamadhatu (dasar): Alam nafsu duniawi
+• Rupadhatu (5 tingkat persegi): Alam peralihan
+• Arupadhatu (3 tingkat bundar): Alam tanpa bentuk
+• Stupa utama: Pencerahan tertinggi (Nirvana)
 
-// ==========================================
-// 2. MAIN SETUP
-// ==========================================
+FAKTA MENARIK:
+- Terdapat 2.672 panel relief dan 504 arca Buddha
+- Merupakan Situs Warisan Dunia UNESCO sejak 1991
+- Panjang total relief jika direntangkan mencapai 6 km`
+  },
+  {
+    id: 'borobudur-stupa',
+    position: { x: 0, y: 0, z: -5 },
+    title: 'Stupa Berlubang (Arupadhatu)',
+    description: `Stupa-stupa berlubang di tingkat Arupadhatu memiliki makna filosofis mendalam.
 
+MAKNA LUBANG:
+Lubang-lubang berbentuk belah ketupat pada stupa melambangkan:
+• Tingkat pertama: Lubang berbentuk persegi (masih terikat dunia)
+• Tingkat kedua: Lubang berbentuk belah ketupat (transisi)  
+• Tingkat ketiga: Lubang lebih besar (hampir bebas)
+
+Di dalam setiap stupa terdapat arca Buddha dalam posisi Dharmachakra Mudra (memutar roda dharma).
+
+MISTERI:
+Konon, jika seseorang dapat menyentuh tangan Buddha di dalam stupa melalui lubang, ia akan mendapat keberuntungan. Namun praktik ini kini dilarang untuk menjaga kelestarian candi.`
+  },
+
+  // === PRAMBANAN ===
+  {
+    id: 'prambanan-main',
+    position: { x: 200, y: 0, z: 245 },
+    title: 'Candi Prambanan',
+    description: `Candi Prambanan adalah kompleks candi Hindu terbesar di Indonesia, dibangun pada abad ke-9 oleh Raja Rakai Pikatan dari Dinasti Sanjaya.
+
+SEJARAH:
+Dibangun sekitar tahun 850 Masehi sebagai tandingan Candi Borobudur yang Buddhist. Candi ini didedikasikan untuk Trimurti - tiga dewa utama Hindu:
+• Candi Siwa (tengah, tertinggi - 47 meter)
+• Candi Brahma (selatan)
+• Candi Wisnu (utara)
+
+LEGENDA RORO JONGGRANG:
+Konon candi ini dibangun oleh Bandung Bondowoso untuk memenuhi syarat menikahi Roro Jonggrang. Ia harus membangun 1.000 candi dalam semalam. Dengan bantuan jin, hampir selesai, namun Roro Jonggrang menipu dengan menumbuk padi agar ayam berkokok pertanda pagi. Marah, Bandung Bondowoso mengutuk Roro Jonggrang menjadi arca - yang kini dikenal sebagai Arca Durga Mahisasuramardini.
+
+ARSITEKTUR:
+- 240 candi dalam kompleks (8 candi utama + 232 candi perwara)
+- Relief menceritakan kisah Ramayana
+- Merupakan Situs Warisan Dunia UNESCO sejak 1991`
+  },
+  {
+    id: 'prambanan-siwa',
+    position: { x: 200, y: 0, z: 200 },
+    title: 'Candi Siwa (Candi Utama)',
+    description: `Candi Siwa adalah candi tertinggi dan terbesar di kompleks Prambanan dengan tinggi 47 meter.
+
+RUANGAN:
+Candi ini memiliki 4 ruangan:
+• Ruang utama: Arca Siwa Mahadewa setinggi 3 meter
+• Ruang utara: Arca Durga Mahisasuramardini (Roro Jonggrang)
+• Ruang selatan: Arca Agastya (guru para dewa)
+• Ruang barat: Arca Ganesha (dewa kebijaksanaan)
+
+RELIEF:
+Dinding candi dihiasi 42 panel relief yang menceritakan kisah Ramayana, dilanjutkan ke Candi Brahma.
+
+MAKNA ARSITEKTUR:
+Bentuk candi yang menjulang tinggi melambangkan Gunung Meru, tempat bersemayamnya para dewa dalam kosmologi Hindu.`
+  },
+
+  // === LEMPUYANG ===
+  {
+    id: 'lempuyang-main',
+    position: { x: -200, y: 0, z: 245 },
+    title: 'Pura Lempuyang Luhur',
+    description: `Pura Lempuyang Luhur adalah salah satu pura tertua dan tersucri di Bali, terletak di lereng Gunung Lempuyang pada ketinggian 1.175 meter.
+
+SEJARAH:
+Pura ini dipercaya sudah ada sejak zaman prasejarah, sebelum agama Hindu masuk ke Bali. Awalnya merupakan tempat pemujaan roh leluhur dan kekuatan alam.
+
+KOMPLEKS PURA:
+Pura Lempuyang terdiri dari 7 pura yang tersebar dari kaki hingga puncak gunung:
+1. Pura Penataran Agung (paling bawah)
+2. Pura Telaga Mas
+3. Pura Telaga Sawang  
+4. Pura Lempuyang Madya
+5. Pura Puncak Bisbis
+6. Pura Pasar Agung
+7. Pura Lempuyang Luhur (puncak)
+
+GATES OF HEAVEN:
+Gerbang terkenal yang memperlihatkan pemandangan Gunung Agung di kejauhan, menjadi salah satu spot foto paling ikonik di Bali.
+
+RITUAL:
+Untuk mencapai puncak, umat harus menaiki 1.700 anak tangga sambil bersembahyang di setiap pura.`
+  },
+  {
+    id: 'lempuyang-gate',
+    position: { x: -200, y: 0, z: 200 },
+    title: 'Gates of Heaven (Gerbang Surga)',
+    description: `"Gates of Heaven" adalah nama populer untuk Candi Bentar (gerbang terbelah) di Pura Penataran Agung Lempuyang.
+
+FILOSOFI CANDI BENTAR:
+Gerbang yang terbelah dua melambangkan:
+• Dualitas alam semesta (baik-buruk, terang-gelap)
+• Pemisahan dunia profan dengan dunia sakral
+• Gunung kosmis yang terbelah untuk memberi jalan
+
+FENOMENA VIRAL:
+Pada 2018, foto dengan refleksi di depan gerbang ini viral di media sosial. Refleksi tersebut sebenarnya berasal dari cermin yang diletakkan fotografer lokal, bukan air. Meski begitu, keindahan pemandangan Gunung Agung di kejauhan tetap nyata dan menakjubkan.
+
+TIPS BERKUNJUNG:
+- Datang pagi hari untuk cuaca cerah
+- Hormati aturan berpakaian (kain & selendang)
+- Antre untuk foto bisa memakan waktu berjam-jam`
+  },
+
+  // === DANAU BATUR ===
+  {
+    id: 'batur-main',
+    position: { x: 0, y: 0, z: -295 },
+    title: 'Danau Batur & Gunung Batur',
+    description: `Danau Batur adalah danau kawah terbesar di Bali, terletak di dalam kaldera raksasa Gunung Batur pada ketinggian 1.050 meter.
+
+GEOLOGI:
+Danau ini terbentuk dari letusan dahsyat Gunung Batur purba sekitar 29.000 tahun lalu yang menciptakan kaldera selebar 13,8 x 10 km - salah satu yang terbesar di dunia.
+
+GUNUNG BATUR:
+Gunung Batur (1.717 m) adalah gunung berapi aktif yang telah meletus lebih dari 20 kali sejak 1800. Letusan terakhir terjadi tahun 2000. Pendakian ke puncak untuk melihat sunrise sangat populer.
+
+KEPERCAYAAN:
+Dalam kepercayaan Hindu Bali, Danau Batur adalah tempat bersemayamnya Dewi Danu - dewi air dan kesuburan. Air danau ini mengairi sawah-sawah di seluruh Bali melalui sistem Subak.
+
+PURA ULUN DANU BATUR:
+Pura kedua terpenting di Bali (setelah Pura Besakih), didedikasikan untuk Dewi Danu. Pura asli tenggelam dalam letusan 1917 dan dibangun kembali di tepi kaldera.
+
+DESA TRUNYAN:
+Di tepi danau terdapat desa Trunyan dengan tradisi unik - jenazah tidak dikubur atau dikremasi, melainkan diletakkan di bawah pohon Taru Menyan.`
+  },
+  {
+    id: 'batur-lake',
+    position: { x: 30, y: 0, z: -250 },
+    title: 'Danau Kawah Batur',
+    description: `Danau Batur memiliki luas 16 km² dengan kedalaman maksimum 88 meter, menjadikannya danau terbesar di Bali.
+
+EKOLOGI:
+Danau ini adalah habitat ikan mujair yang diintroduksi dari Afrika pada 1939. Kini ikan mujair menjadi sumber protein penting bagi masyarakat sekitar dan diolah menjadi berbagai hidangan khas.
+
+SUBAK:
+Air Danau Batur mengalir melalui sistem irigasi tradisional Subak yang telah berusia lebih dari 1.000 tahun. Sistem Subak adalah warisan dunia UNESCO yang mengatur distribusi air secara adil ke seluruh sawah di Bali.
+
+PEMANDIAN AIR PANAS:
+Di tepi danau terdapat pemandian air panas alami Toya Bungkah yang dipercaya memiliki khasiat menyembuhkan berbagai penyakit.
+
+LEGENDA:
+Konon Danau Batur dan Danau Bratan (di Bedugul) dulunya satu. Ketika Dewa Wisnu membelah gunung untuk mengairi Bali, terbentuklah dua danau terpisah.`
+  },
+
+  // === PUNAKAWAN INFO ===
+  {
+    id: 'punakawan-info',
+    position: { x: 50, y: 0, z: 50 },
+    title: 'Punakawan - Pengawal Setia',
+    description: `PUNAKAWAN adalah kelompok empat abdi dalam pewayangan Jawa yang mengawal para kesatria Pandawa. Mereka adalah ciptaan asli budaya Jawa yang tidak ada dalam Mahabharata India asli.
+
+ANGGOTA PUNAKAWAN:
+
+SEMAR (Sang Pamomong)
+• Nama asli: Batara Ismaya
+• Status: Dewa yang memilih hidup sebagai rakyat jelata
+• Filosofi: Kebijaksanaan sejati datang dari kesederhanaan
+
+GARENG (Si Setia)
+• Nama asli: Nala Gareng
+• Ciri: Mata juling, tangan bengkok, kaki pincang
+• Filosofi: Kecacatan fisik bukan penghalang berbuat baik
+
+PETRUK (Si Dermawan)
+• Nama asli: Kanthong Bolong
+• Ciri: Hidung panjang, tubuh tinggi kurus
+• Filosofi: Berbagi tanpa pamrih
+
+BAGONG (Si Jujur)
+• Status: Putra bungsu Semar
+• Ciri: Tubuh gemuk, wajah polos
+• Filosofi: Keberanian berkata benar
+
+PERAN DALAM PEWAYANGAN:
+Punakawan muncul dalam adegan "Goro-goro" sebagai selingan humor sekaligus kritik sosial. Melalui candaan, mereka menyampaikan pesan moral dan sindiran terhadap ketidakadilan.`
+  }
+];
+
+// ===== DOM ELEMENTS =====
+const loadingScreen = document.getElementById('loading-screen');
+const loadingText = document.getElementById('loading-text');
+const charSelection = document.getElementById('char-selection');
+const charOptions = document.getElementById('char-options');
+const startExploreBtn = document.getElementById('start-explore-btn');
+const gameHud = document.getElementById('game-hud');
+const playerAvatar = document.getElementById('player-avatar');
+const playerNameEl = document.getElementById('player-name');
+const locationNameEl = document.getElementById('location-name');
+const menuBtn = document.getElementById('menu-btn');
+const pauseMenu = document.getElementById('pause-menu');
+const resumeBtn = document.getElementById('resume-btn');
+const changeCharBtn = document.getElementById('change-char-btn');
+const exitBtn = document.getElementById('exit-btn');
+const interactionPrompt = document.getElementById('interaction-prompt');
+const infoPanel = document.getElementById('info-panel');
+const closeInfoBtn = document.getElementById('close-info-btn');
+const infoTitle = document.getElementById('info-title');
+const infoDescription = document.getElementById('info-description');
+const minimapCanvas = document.getElementById('minimap-canvas');
+const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
+
+// ===== THREE.JS SETUP =====
 const canvas = document.getElementById('scene');
-// Enable ShadowMap pada renderer
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.0008); // Reduced fog for larger world
 
-const aspect = window.innerWidth / window.innerHeight;
-const viewHeight = 10;
-const camera = new THREE.OrthographicCamera(
-  -viewHeight * aspect / 2,
-  viewHeight * aspect / 2,
-  viewHeight / 2,
-  -viewHeight / 2,
-  0.1,
-  100
-);
-camera.position.z = 10;
+// Perspective camera for 3D world - extended far plane
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+camera.position.set(0, 15, 100);
 
-// Lighting Setup (Pengganti Basic Light)
-// 1. Ambient Light (Cahaya dasar, default 0 biar gelap dulu)
-const ambientLight = new THREE.AmbientLight(0xffffff, 0); 
+// ===== LIGHTING =====
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
 scene.add(ambientLight);
 
-// 2. Directional Light (Matahari/Bulan pembentuk bayangan)
-const dirLight = new THREE.DirectionalLight(0xffffff, 0);
-dirLight.position.set(5, 8, 5); // Posisi cahaya dari atas kanan depan
-dirLight.castShadow = true;
+const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.2);
+sunLight.position.set(100, 200, 100);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 4096;
+sunLight.shadow.mapSize.height = 4096;
+sunLight.shadow.camera.near = 10;
+sunLight.shadow.camera.far = 500;
+sunLight.shadow.camera.left = -300;
+sunLight.shadow.camera.right = 300;
+sunLight.shadow.camera.top = 300;
+sunLight.shadow.camera.bottom = -300;
+scene.add(sunLight);
 
-// Optimasi Shadow Map
-dirLight.shadow.mapSize.width = 1024;
-dirLight.shadow.mapSize.height = 1024;
-dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 20;
-dirLight.shadow.camera.left = -10;
-dirLight.shadow.camera.right = 10;
-dirLight.shadow.camera.top = 10;
-dirLight.shadow.camera.bottom = -10;
-scene.add(dirLight);
+// Hemisphere light for natural outdoor lighting
+const hemiLight = new THREE.HemisphereLight(0x87CEEB, 0x3d5c3d, 0.5);
+scene.add(hemiLight);
 
-// Variables for lighting animation
-let targetIntensity = 0;
-let targetAmbient = 0;
-
-
-const listener = new THREE.AudioListener();
-camera.add(listener);
-
-// Music: menu (idle) and fight
-const audioLoader = new THREE.AudioLoader();
-const menuMusic = new THREE.Audio(listener);
-const fightMusic = new THREE.Audio(listener);
-let musicReady = { menu: false, fight: false };
-audioLoader.load('./music/idle.mp3', (buffer) => { try { menuMusic.setBuffer(buffer); menuMusic.setLoop(true); menuMusic.setVolume(0.45); musicReady.menu = true; } catch(e){} });
-audioLoader.load('./music/fight.mp3', (buffer) => { try { fightMusic.setBuffer(buffer); fightMusic.setLoop(true); fightMusic.setVolume(0.5); musicReady.fight = true; } catch(e){} });
-
-function stopMusic(audio) {
-  try {
-    if (audio && audio.isPlaying) audio.stop();
-  } catch (e) {}
-}
-
-function playMusic(name) {
-  try {
-    if (name === 'menu') {
-      if (fightMusic && fightMusic.isPlaying) stopMusic(fightMusic);
-      if (menuMusic && !menuMusic.isPlaying && musicReady.menu) {
-        try {
-          // start muted then fade-in for nicer UX
-          menuMusic.setVolume(0);
-          const p = menuMusic.play();
-          if (p && p.catch) p.catch(() => {});
-          // ramp volume to desired level
-          const target = 0.45;
-          const steps = 12;
-          let cur = 0;
-          const step = target / steps;
-          const iv = setInterval(() => {
-            cur += step;
-            try { menuMusic.setVolume(Math.min(cur, target)); } catch(e){}
-            if (cur >= target) clearInterval(iv);
-          }, 70);
-        } catch(e){}
-      }
-    } else if (name === 'fight') {
-      if (menuMusic && menuMusic.isPlaying) stopMusic(menuMusic);
-      if (fightMusic && !fightMusic.isPlaying && musicReady.fight) {
-        const p = fightMusic.play();
-        if (p && p.catch) p.catch(() => {});
-      }
-    }
-  } catch (e) {}
-}
-
-function updateMusicForState() {
-  // fight music only during active fight
-  if (gameState.status === 'fight') {
-    playMusic('fight');
-  } else {
-    // otherwise use menu/idle music
-    playMusic('menu');
-  }
-}
-
-function createTone(freq, durationMs = 140, type = 'sine', gain = 0.25) {
-  const ctx = listener.context;
-  const sampleRate = ctx.sampleRate;
-  const length = Math.floor(sampleRate * (durationMs / 1000));
-  const buffer = ctx.createBuffer(1, length, sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) {
-    const t = i / sampleRate;
-    const env = Math.max(0, 1 - (i / length));
-    const phase = 2 * Math.PI * freq * t;
-    let v = Math.sin(phase);
-    if (type === 'square') v = Math.sign(v);
-    else if (type === 'triangle') v = 2 * Math.asin(Math.sin(phase)) / Math.PI;
-    data[i] = v * env * gain;
-  }
-  const audio = new THREE.Audio(listener);
-  audio.setBuffer(buffer);
-  audio.setLoop(false);
-  return audio;
-}
-
-const sfx = {
-  punch: () => { const a = createTone(320, 120, 'triangle', 0.35); a.play(); },
-  block: () => { const a = createTone(180, 90, 'square', 0.28); a.play(); },
-  win: () => { const a = createTone(520, 300, 'sine', 0.3); a.play(); },
-  jump: () => { const a = createTone(440, 160, 'sine', 0.25); a.play(); }
-};
-
-let selectedMap = './map/latar.jpg';
-
-// Gunakan StandardMaterial agar bisa bereaksi thd cahaya dan menerima bayangan
-const backgroundMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(24 * aspect, 24), // Lebar diperbesar agar cover area
-  new THREE.MeshStandardMaterial({ 
-    color: 0xffffff, 
-    roughness: 1, 
-    metalness: 0 
-  })
-);
-backgroundMesh.position.z = -6; // Mundur agar ornamen 3D muat
-backgroundMesh.receiveShadow = true; // Background menerima bayangan dari ornamen
-scene.add(backgroundMesh);
-
-// Utility: safe DOM removal helper to avoid repeating try/catch removal patterns
-function safeRemove(node) {
-  try {
-    if (!node) return;
-    if (typeof node.remove === 'function') node.remove();
-    else if (node.parentNode) node.parentNode.removeChild(node);
-  } catch (e) {
-    try { node && node.parentNode && node.parentNode.removeChild(node); } catch (err) {}
-  }
-}
-
-function loadBackground(path) {
-  new THREE.TextureLoader().load(path, (tex) => {
-    tex.colorSpace = THREE.SRGBColorSpace;
-    
-    // Gunakan LinearFilter untuk hasil lebih smooth tanpa blur berlebihan
-    tex.minFilter = THREE.LinearMipmapLinearFilter; 
-    tex.magFilter = THREE.LinearFilter;
-    
-    tex.generateMipmaps = true;
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    backgroundMesh.material.map = tex;
-    backgroundMesh.material.needsUpdate = true;
-  });
-}
-loadBackground(selectedMap);
-
-// Lantai penerima bayangan
-const floorMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(30, 5),
-  new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 1 })
-);
-floorMesh.position.y = -3.8;
-floorMesh.position.z = -1;
-floorMesh.receiveShadow = true; // Lantai menerima bayangan
-scene.add(floorMesh);
-
-// ==========================================
-// 3. MAP CONFIGURATION & LOGIC
-// ==========================================
-
-const decorationGroup = new THREE.Group();
-scene.add(decorationGroup);
-
-// Konfigurasi Tiap Map (Warna Lampu + Tipe Ornamen)
-const mapConfigs = {
-  1: { // latar.jpg (Wayang/Gold)
-    lightColor: 0xffdd55, // Kuning Emas
-    intensity: 1.2,
-    ambient: 0.5,
-    ornament: 'obor'
-  },
-  2: { // latar2.png (Borobudur/Sunset)
-    lightColor: 0xffaa66, // Oranye Sore
-    intensity: 1.5,
-    ambient: 0.3,
-    ornament: 'stupa'
-  },
-  3: { // latar3.png (Candi Bentar/Siang Biru)
-    lightColor: 0xffffff, // Putih Terang
-    intensity: 1.1,
-    ambient: 0.6,
-    ornament: 'bentar'
-  },
-  4: { // latar4.png (Prambanan/Siang)
-    lightColor: 0xffffcc, // Kuning Pucat
-    intensity: 1.2,
-    ambient: 0.5,
-    ornament: 'prambanan'
-  },
-  5: { // latar5.png (Danau/Meru/Misty)
-    lightColor: 0xaaccff, // Biru Kebiruan (Misty)
-    intensity: 1.0,
-    ambient: 0.4,
-    ornament: 'meru'
-  }
-};
-
-function loadMapDecorations(mapIndex) {
-  // 1. Bersihkan ornamen lama
-  while(decorationGroup.children.length > 0){ 
-    const obj = decorationGroup.children[0];
-    decorationGroup.remove(obj);
-    if(obj.geometry) obj.geometry.dispose();
-    if(obj.material) obj.material.dispose();
-  }
-
-  const config = mapConfigs[mapIndex] || mapConfigs[1];
-
-  // 2. Set Warna Lampu
-  dirLight.color.setHex(config.lightColor);
-  
-  // 3. Set Target Intensitas (untuk animasi fade-in nanti)
-  targetIntensity = config.intensity;
-  targetAmbient = config.ambient;
-  
-  // Reset lampu ke 0 dulu biar nanti transisi halus
-  dirLight.intensity = 0;
-  ambientLight.intensity = 0;
-
-  // 4. Pasang Ornamen sesuai Map
-  if (config.ornament === 'stupa') {
-    decorationGroup.add(createStupa(-7, -2, 1.5));
-    decorationGroup.add(createStupa(-5, -4, 1.2));
-    decorationGroup.add(createStupa(6, -2, 1.5));
-    decorationGroup.add(createStupa(8, -4, 1.0));
-  } 
-  else if (config.ornament === 'bentar') {
-    decorationGroup.add(createCandiBentar(-6, -3, 1.5));
-    decorationGroup.add(createCandiBentar(6, -3, 1.5));
-  }
-  else if (config.ornament === 'prambanan') {
-    decorationGroup.add(createPrambanan(-7, -3, 1.2));
-    decorationGroup.add(createPrambanan(7, -3, 1.2));
-    // Tambah candi kecil di jauh belakang
-    const small = createPrambanan(0, -6, 0.8);
-    small.position.y = -4; // Turunin dikit
-    decorationGroup.add(small);
-  }
-  else if (config.ornament === 'meru') {
-    decorationGroup.add(createMeru(-6, -2, 1.3));
-    decorationGroup.add(createMeru(6, -2, 1.3));
-    decorationGroup.add(createMeru(-8, -4, 1.0));
-  }
-  else { // Obor / Default
-    decorationGroup.add(createObor(-5, -2));
-    decorationGroup.add(createObor(5, -2));
-  }
-}
-
-class Fighter2D {
-  constructor(idleFrames, punchFrames, walkFrames, startX, facingRight, playerIndex) {
-    this.playerIndex = playerIndex;
-    this.facingRight = facingRight;
-    this.startX = startX;
-    this.currentAnim = 'idle';
-    this.attackTimer = 0;
-    this.cooldown = 0;
-    this.blocking = false;
-    this.blockEffectTimer = 0;
-    this.hitFlashTimer = 0; // timer untuk efek flash putih saat terkena hit
-    this.x = startX;
-    this.y = -3;
-    this.baseY = -3;
-    this.velocityY = 0;
-    this.onGround = true;
-    this.isWalking = false; // track jika karakter sedang jalan
-    
-    // Animation frame tracking
-    this.idleFrameIndex = 0;
-    this.idleFrameTimer = 0;
-    this.idleFrameSpeed = 0.15; // waktu per frame dalam detik
-    
-    // Punch animation frame tracking
-    this.punchFrameIndex = 0;
-    this.punchFrameTimer = 0;
-    this.punchFrameSpeed = 0.1; // waktu per frame punch
-    
-    // Walk animation frame tracking
-    this.walkFrameIndex = 0;
-    this.walkFrameTimer = 0;
-    this.walkFrameSpeed = 0.08; // waktu per frame walk
-    
-    // Load idle animation frames
-    this.idleTextures = [];
-    const loader = new THREE.TextureLoader();
-    idleFrames.forEach((path) => {
-      const tex = loader.load(path, (t) => {
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.magFilter = THREE.LinearFilter;
-        t.minFilter = THREE.LinearFilter;
-      });
-      this.idleTextures.push(tex);
-    });
-    
-    // Load punch animation frames
-    this.punchTextures = [];
-    punchFrames.forEach((path) => {
-      const tex = loader.load(path, (t) => {
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.magFilter = THREE.LinearFilter;
-        t.minFilter = THREE.LinearFilter;
-      });
-      this.punchTextures.push(tex);
-    });
-    
-    // Load walk animation frames
-    this.walkTextures = [];
-    walkFrames.forEach((path) => {
-      const tex = loader.load(path, (t) => {
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.magFilter = THREE.LinearFilter;
-        t.minFilter = THREE.LinearFilter;
-      });
-      this.walkTextures.push(tex);
-    });
-    
-    const spriteMaterial = new THREE.MeshBasicMaterial({
-      map: this.idleTextures[0],
-      transparent: true,
-      side: THREE.DoubleSide,
-      alphaTest: 0.1
-    });
-    
-    // Sprite height 4 units, aspect ratio akan di-set otomatis
-    this.spriteHeight = 4;
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(3, 4), spriteMaterial);
-    this.mesh.position.set(startX, this.y + 0.5, 0);
-    scene.add(this.mesh);
-  }
-  
-  update(delta) {
-    if (this.cooldown > 0) this.cooldown -= delta;
-    if (this.attackTimer > 0) this.attackTimer -= delta;
-    if (this.blockEffectTimer > 0) this.blockEffectTimer -= delta;
-    if (this.hitFlashTimer > 0) this.hitFlashTimer -= delta;
-    
-    if (!this.onGround) {
-      this.velocityY -= 30 * delta;
-      this.y += this.velocityY * delta;
-      if (this.y <= this.baseY) {
-        this.y = this.baseY;
-        this.velocityY = 0;
-        this.onGround = true;
-      }
-    }
-    
-    this.mesh.position.x = this.x;
-    this.mesh.position.y = this.y + 1;
-    
-    // Switch texture berdasarkan state
-    if (this.attackTimer > 0) {
-      // Animasi punch
-      this.punchFrameTimer += delta;
-      if (this.punchFrameTimer >= this.punchFrameSpeed) {
-        this.punchFrameTimer = 0;
-        this.punchFrameIndex = (this.punchFrameIndex + 1) % this.punchTextures.length;
-      }
-      this.mesh.material.map = this.punchTextures[this.punchFrameIndex];
-      this.mesh.material.needsUpdate = true;
-      // Mirror punch
-      this.mesh.scale.x = this.facingRight ? 1 : -1;
-    } else if (this.isWalking && this.onGround) {
-      // Reset punch dan idle frame saat walk
-      this.punchFrameIndex = 0;
-      this.punchFrameTimer = 0;
-      this.idleFrameIndex = 0;
-      this.idleFrameTimer = 0;
-      
-      // Animasi walk
-      this.walkFrameTimer += delta;
-      if (this.walkFrameTimer >= this.walkFrameSpeed) {
-        this.walkFrameTimer = 0;
-        this.walkFrameIndex = (this.walkFrameIndex + 1) % this.walkTextures.length;
-      }
-      this.mesh.material.map = this.walkTextures[this.walkFrameIndex];
-      this.mesh.material.needsUpdate = true;
-      // Mirror walk
-      this.mesh.scale.x = this.facingRight ? 1 : -1;
-    } else {
-      // Reset punch dan walk frame saat idle
-      this.punchFrameIndex = 0;
-      this.punchFrameTimer = 0;
-      this.walkFrameIndex = 0;
-      this.walkFrameTimer = 0;
-      
-      // Animasi idle
-      this.idleFrameTimer += delta;
-      if (this.idleFrameTimer >= this.idleFrameSpeed) {
-        this.idleFrameTimer = 0;
-        this.idleFrameIndex = (this.idleFrameIndex + 1) % this.idleTextures.length;
-      }
-      this.mesh.material.map = this.idleTextures[this.idleFrameIndex];
-      this.mesh.material.needsUpdate = true;
-      // Mirror idle
-      this.mesh.scale.x = this.facingRight ? 1 : -1;
-    }
-    
-    this.mesh.rotation.z = 0;
-    
-    if (this.blockEffectTimer > 0) {
-      const pulse = Math.sin((this.blockEffectTimer / 0.25) * Math.PI) * 0.15;
-      this.mesh.scale.y = 1 + pulse;
-    } else {
-      this.mesh.scale.y = 1;
-    }
-    
-    if (this.blocking && this.attackTimer <= 0) {
-      this.mesh.scale.y = 0.9;
-      this.mesh.position.y = this.y + 0.8;
-    }
-    
-    // Efek flash putih saat terkena hit
-    if (this.hitFlashTimer > 0) {
-      // Buat sprite sangat putih terang
-      const flashIntensity = this.hitFlashTimer / 0.2;
-      const brightness = 5 + flashIntensity * 10; // jauh lebih terang
-      this.mesh.material.color.setRGB(brightness, brightness, brightness);
-    } else {
-      this.mesh.material.color.setRGB(1, 1, 1);
-    }
-    
-    // Reset walking state setelah update
-    this.isWalking = false;
-  }
-  
-  takeHit() {
-    this.hitFlashTimer = 0.2; // durasi flash putih lebih lama
-  }
-  
-  attack() {
-    if (this.cooldown > 0 || this.attackTimer > 0) return false;
-    this.attackTimer = 0.3;
-    this.cooldown = 0.5;
-    sfx.punch();
-    return true;
-  }
-  
-  jump() {
-    if (!this.onGround) return;
-    this.velocityY = 12;
-    this.onGround = false;
-    sfx.jump();
-  }
-  
-  reset() {
-    this.x = this.startX;
-    this.y = this.baseY;
-    this.velocityY = 0;
-    this.onGround = true;
-    this.attackTimer = 0;
-    this.cooldown = 0;
-    this.blocking = false;
-  }
-  
-  getHitbox() {
-    return { x: this.x - 0.6, y: this.y - 0.5, width: 1.2, height: 3 };
-  }
-  
-  getAttackBox() {
-    const offsetX = this.facingRight ? 0.8 : -1.8;
-    return { x: this.x + offsetX, y: this.y, width: 1, height: 2 };
-  }
-}
-
-function boxCollision(box1, box2) {
-  return box1.x < box2.x + box2.width &&
-         box1.x + box1.width > box2.x &&
-         box1.y < box2.y + box2.height &&
-         box1.y + box1.height > box2.y;
-}
-
-const gameState = {
-  status: 'menu',
-  hp: [100, 100],
-  maxHp: 100,
-  timer: 99,
-  round: 1,
-  roundWins: [0, 0],
-  timerEl: document.getElementById('timer-display'),
-  hpEls: [document.getElementById('hp1'), document.getElementById('hp2')],
-  scoreEls: [document.getElementById('score1'), document.getElementById('score2')],
-  messageEl: document.getElementById('message'),
-  hudEl: document.getElementById('hud'),
-  menuEl: document.getElementById('menu')
-};
-
-const loadingEl = document.getElementById('loading-screen');
-const backMenuBtn = document.getElementById('back-menu-btn');
-
-const preFightEl = document.getElementById('pre-fight');
-const mapPaths = ['./map/latar.jpg', './map/latar2.png', './map/latar3.png', './map/latar4.png', './map/latar5.png'];
-let dynamicMapEl = null;
-
-function showMapSelection() {
-  if (dynamicMapEl) {
-    dynamicMapEl.style.display = 'flex';
-    return;
-  }
-  const el = document.createElement('div');
-  el.id = 'map-selection-dyn';
-  el.style.position = 'fixed';
-  el.style.inset = '0';
-  el.style.display = 'flex';
-  el.style.alignItems = 'center';
-  el.style.justifyContent = 'center';
-  el.style.background = 'rgba(8,6,14,0.85)';
-  el.style.backdropFilter = 'blur(6px)';
-  el.style.zIndex = '2147483646';
-  el.innerHTML = `
-    <div style="background:rgba(0,0,0,0.5); padding:20px 22px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); box-shadow:0 30px 60px rgba(0,0,0,0.75); max-width:880px; width:90%;">
-      <h2 style="margin:0 0 12px; letter-spacing:2px; text-align:center;">PILIH ARENA</h2>
-      <div id="map-grid-dyn" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:14px;">
-      </div>
-      <p style="margin:12px 0 0; text-align:center; opacity:0.85;">Klik gambar untuk memilih arena dan mulai.</p>
-    </div>
-  `;
-  document.body.appendChild(el);
-  const grid = el.querySelector('#map-grid-dyn');
-  mapPaths.forEach((p, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'map-choice';
-    btn.setAttribute('data-index', (i + 1).toString());
-    btn.style.padding = '0'; btn.style.border = 'none'; btn.style.background = 'none'; btn.style.cursor = 'pointer'; btn.style.borderRadius = '10px'; btn.style.overflow = 'hidden'; btn.style.border = '2px solid rgba(255,255,255,0.15)';
-    const img = document.createElement('img');
-    img.src = p;
-    img.alt = 'Arena ' + (i + 1);
-    img.style.width = '100%'; img.style.height = '120px'; img.style.objectFit = 'cover'; img.style.display = 'block';
-    btn.appendChild(img);
-    btn.addEventListener('click', (e) => { e.stopPropagation(); chooseMap(i + 1); });
-    grid.appendChild(btn);
-  });
-  dynamicMapEl = el;
-}
-
-function hideMapSelection() {
-  if (dynamicMapEl) {
-    try { dynamicMapEl.remove(); } catch (e) { try { dynamicMapEl.parentNode && dynamicMapEl.parentNode.removeChild(dynamicMapEl); } catch(e){} }
-    dynamicMapEl = null;
-  }
-}
-
-function chooseMap(idx) {
-  if (idx < 1 || idx > mapPaths.length) return;
-  selectedMap = mapPaths[idx - 1];
-  loadBackground(selectedMap);
-  
-  // [NEW] Load Ornamen & Lighting berdasarkan map
-  loadMapDecorations(idx);
-
-  // Close character selection immediately to avoid it showing during pre-fight
-  closeCharacterSelectionUI();
-  hideMapSelection();
-  if (preFightEl) {
-    preFightEl.style.display = 'flex';
-    setTimeout(() => {
-      preFightEl.style.display = 'none';
-      startMatch();
-    }, 3000);
-  } else {
-    startMatch();
-  }
-}
-
-const keys = {};
-window.addEventListener('keydown', (e) => { keys[e.code] = true; });
-window.addEventListener('keyup', (e) => { keys[e.code] = false; });
-
-// Character/frame helper and selection state
-const characterOptions = ['bagong', 'gareng', 'petruk', 'semar'];
-const selectedCharacters = ['bagong', 'bagong']; // [player1, player2]
-// Short cultural/story info shown in selection panel
-const characterInfos = {
-  bagong: {
-    display: 'Bagong',
-    title: 'Punokawan — Pelawak Bijak',
-    desc: 'Bagong adalah salah satu punokawan dalam wayang yang dikenal jenaka namun bicara kebijaksanaan. Ia sering memberi komentar lucu untuk mencerahkan suasana dan bertindak sebagai penengah antar tokoh.',
-  },
-  gareng: {
-    display: 'Gareng',
-    title: 'Punokawan — Setia dan Kocak',
-    desc: 'Gareng punya ciri khas fisik unik dan sering menjadi sumber humor. Meskipun jenaka, ia setia kepada kebaikan dan sering membantu tokoh utama dengan cara sederhana.',
-  },
-  petruk: {
-    display: 'Petruk',
-    title: 'Punokawan — Cerdik dan Santai',
-    desc: 'Petruk terkenal dengan hidung panjangnya dan cerdas dalam berbicara. Ia kerap menggunakan sindiran halus dan trik untuk menyelesaikan masalah dalam cerita wayang.',
-  },
-  semar: {
-    display: 'Semar',
-    title: 'Punokawan — Rohani & Bijaksana',
-    desc: 'Semar adalah tokoh tua yang bijaksana dan berperan sebagai bimbingan moral. Ia sering menasihati para ksatria dan bertindak sebagai suara nurani dalam lakon wayang.',
-  }
-};
-// Pre-scanned frames index (auto-detected from project files)
-const framesIndex = {
-  bagong: {
-    idle: [
-      './textures/bagong/idle/idle 1.png',
-      './textures/bagong/idle/idle 2.png',
-      './textures/bagong/idle/idle 3.png',
-      './textures/bagong/idle/idle 4.png'
-    ],
-    punch: [
-      './textures/bagong/punch/punch 1.png',
-      './textures/bagong/punch/punch 2.png'
-    ],
-    walk: [
-      './textures/bagong/walk/walk 1.png',
-      './textures/bagong/walk/walk 2.png',
-      './textures/bagong/walk/walk 3.png',
-      './textures/bagong/walk/walk 4.png',
-      './textures/bagong/walk/walk 5.png',
-      './textures/bagong/walk/walk 6.png'
-    ]
-  },
-  gareng: {
-    idle: [
-      './textures/gareng/idle/grng idle 1.png',
-      './textures/gareng/idle/grng idle 2.png',
-      './textures/gareng/idle/grng idle 3.png',
-      './textures/gareng/idle/grng idle 4.png',
-      './textures/gareng/idle/grng idle 5.png'
-    ],
-    punch: ['./textures/gareng/punch/grng punch.png'],
-    walk: [
-      './textures/gareng/walk/grng walk 1.png',
-      './textures/gareng/walk/grng walk 2.png',
-      './textures/gareng/walk/grng walk 3.png',
-      './textures/gareng/walk/grng walk 4.png',
-      './textures/gareng/walk/grng walk 5.png'
-    ]
-  },
-  petruk: {
-    idle: [
-      './textures/petruk/idle/petrul idle 1.png',
-      './textures/petruk/idle/petrul idle 2.png',
-      './textures/petruk/idle/petrul idle 3.png',
-      './textures/petruk/idle/petrul idle 4.png'
-    ],
-    punch: ['./textures/petruk/punch/petruk punch.png'],
-    walk: [
-      './textures/petruk/walk/petruk walk 1.png',
-      './textures/petruk/walk/petruk walk 2.png',
-      './textures/petruk/walk/petruk walk 3.png',
-      './textures/petruk/walk/petruk walk 4.png',
-      './textures/petruk/walk/petruk walk 5.png'
-    ]
-  },
-  semar: {
-    idle: [
-      './textures/semar/idle/semar idle 1.png',
-      './textures/semar/idle/semar idle 2.png',
-      './textures/semar/idle/semar idle 3.png',
-      './textures/semar/idle/semar idle 4.png'
-    ],
-    punch: ['./textures/semar/punch/semar punch.png'],
-    walk: [
-      './textures/semar/walk/semar walk 1.png',
-      './textures/semar/walk/semar walk 2.png',
-      './textures/semar/walk/semar walk 3.png',
-      './textures/semar/walk/semar walk 4.png',
-      './textures/semar/walk/semar walk 5.png',
-      './textures/semar/walk/semar walk 6.png'
-    ]
-  }
-};
-
-function getFramesFor(name) {
-  if (framesIndex[name]) return framesIndex[name];
-  // fallback: try the generic pattern
-  const idle = [];
-  for (let i = 1; i <= 4; i++) idle.push(`./textures/${name}/idle/idle ${i}.png`);
-  const punch = [`./textures/${name}/punch/punch 1.png`, `./textures/${name}/punch/punch 2.png`];
-  const walk = [];
-  for (let i = 1; i <= 6; i++) walk.push(`./textures/${name}/walk/walk ${i}.png`);
-  return { idle, punch, walk };
-}
-
-// Preload thumbnail images (first idle frame) and show small overlay while loading
-const thumbnailsCache = {};
-let thumbnailsLoaded = false;
-// icon availability cache (per-character icon.png)
-const iconsAvailable = {};
-
-function iconPathFor(name) {
-  return `./textures/${name}/${name} icon.png`;
-}
-
-function preloadIcons() {
-  const names = Object.keys(framesIndex);
-  names.forEach((name) => {
-    const img = new Image();
-    img.onload = () => { iconsAvailable[name] = true; };
-    img.onerror = () => { iconsAvailable[name] = false; };
-    img.src = iconPathFor(name);
-  });
-}
-
-function showThumbnailLoader() {
-  if (document.getElementById('thumb-loader')) return;
-  const el = document.createElement('div');
-  el.id = 'thumb-loader';
-  el.className = 'thumb-loader';
-  el.innerHTML = `<div class="card"><div class="spinner"></div><div class="text">MEMUAT KARAKTER...</div></div>`;
-  document.body.appendChild(el);
-}
-
-function hideThumbnailLoader() {
-  const el = document.getElementById('thumb-loader');
-  if (el) el.remove();
-}
-
-function preloadThumbnails() {
-  if (thumbnailsLoaded) return Promise.resolve(thumbnailsCache);
-  showThumbnailLoader();
-  const names = Object.keys(framesIndex);
-  let pending = names.length;
-  return new Promise((resolve) => {
-    names.forEach((name) => {
-      const src = (framesIndex[name] && framesIndex[name].idle && framesIndex[name].idle[0]) || (`./textures/${name}/idle/idle 1.png`);
-      const img = new Image();
-      img.onload = () => {
-        thumbnailsCache[name] = img;
-        pending -= 1;
-        if (pending <= 0) {
-          thumbnailsLoaded = true;
-          hideThumbnailLoader();
-          resolve(thumbnailsCache);
-        }
-      };
-      img.onerror = () => {
-        // create a tiny placeholder canvas image to avoid repeated 404s
-        const canvas = document.createElement('canvas'); canvas.width = 96; canvas.height = 128;
-        const ctx = canvas.getContext('2d'); ctx.fillStyle = '#222'; ctx.fillRect(0,0,canvas.width,canvas.height);
-        ctx.fillStyle = '#666'; ctx.font = '14px sans-serif'; ctx.fillText(name, 6, 20);
-        const dataUrl = canvas.toDataURL();
-        const placeholder = new Image(); placeholder.src = dataUrl;
-        thumbnailsCache[name] = placeholder;
-        pending -= 1;
-        if (pending <= 0) {
-          thumbnailsLoaded = true;
-          hideThumbnailLoader();
-          resolve(thumbnailsCache);
-        }
-      };
-      img.src = src;
-    });
-  });
-}
-
-// Start preloading thumbnails immediately so UI is responsive when opened
-preloadThumbnails().then(() => {
-  // if char-selection already present, update existing thumbs src to cached images
-  const p1 = document.getElementById('p1-options');
-  const p2 = document.getElementById('p2-options');
-  if (p1) Array.from(p1.querySelectorAll('img')).forEach(img => {
-    const name = img.alt || img.title;
-    if (thumbnailsCache[name]) img.src = thumbnailsCache[name].src;
-  });
-  if (p2) Array.from(p2.querySelectorAll('img')).forEach(img => {
-    const name = img.alt || img.title;
-    if (thumbnailsCache[name]) img.src = thumbnailsCache[name].src;
-  });
-  // enable start button when thumbnails ready
-  const startBtnEl = document.getElementById('start-btn');
-  if (startBtnEl) {
-    startBtnEl.disabled = false;
-    startBtnEl.textContent = 'MULAI PERTARUNGAN';
-  }
-  updateHUDCharacters();
-  // Ensure correct music for initial state (menu)
-  updateMusicForState();
+// ===== MATERIALS =====
+const stoneMaterial = new THREE.MeshStandardMaterial({
+  color: 0x8B8B7A,
+  roughness: 0.9,
+  metalness: 0.1
 });
 
-// also try to preload icon.png availability for each character
-preloadIcons();
+const darkStoneMaterial = new THREE.MeshStandardMaterial({
+  color: 0x5a5a4a,
+  roughness: 0.95,
+  metalness: 0.05
+});
 
-// Fallback: if thumbnails preload somehow hangs or start button remains disabled,
-// enable Start after a short timeout so the user can proceed and report asset issues.
-let startUnlocked = false;
-setTimeout(() => {
-  try {
-    const startBtnEl = document.getElementById('start-btn');
-    if (startBtnEl && startBtnEl.disabled) {
-      startBtnEl.disabled = false;
-      startBtnEl.textContent = 'MULAI PERTARUNGAN';
-    }
-    // allow global click to start even if UI still shows loading
-    startUnlocked = true;
-    console.warn('[UI] start fallback unlocked');
-  } catch (e) { /* ignore */ }
-}, 6000);
+const redStoneMaterial = new THREE.MeshStandardMaterial({
+  color: 0x8B4513,
+  roughness: 0.85,
+  metalness: 0.1
+});
 
-// Fighters will be created when a round starts (after character selection)
-let fighters = [];
-let fighter1 = null;
-let fighter2 = null;
+const grassMaterial = new THREE.MeshStandardMaterial({
+  color: 0x4a7c4e,
+  roughness: 1.0
+});
 
-// ---------- Character selection UI & flow ----------
-function createCharacterSelectionUI() {
-  // Populate or create the character selection UI.
-  let el = document.getElementById('char-selection');
-  let created = false;
-    if (!el) { 
-    created = true;
-    el = document.createElement('div');
-    el.id = 'char-selection';
-    el.className = '';
-    el.innerHTML = `
-      <div class="panel">
-        <div class="char-info left" aria-hidden="true"></div>
+const pathMaterial = new THREE.MeshStandardMaterial({
+  color: 0x8B7355,
+  roughness: 0.8
+});
 
-        <div style="min-width:240px" class="p1-col">
-          <h3>Player 1</h3>
-          <div id="p1-options" class="choices"></div>
-        </div>
+const waterMaterial = new THREE.MeshStandardMaterial({
+  color: 0x2E8B8B,
+  roughness: 0.1,
+  metalness: 0.3,
+  transparent: true,
+  opacity: 0.8
+});
 
-        <div class="actions">
-          <button id="char-confirm">Confirm</button>
-          <button id="char-cancel">Cancel</button>
-        </div>
+// ===== COLLISION SYSTEM =====
+function addCollisionBox(x, z, width, depth, height = 50) {
+  collisionBoxes.push({
+    minX: x - width / 2,
+    maxX: x + width / 2,
+    minZ: z - depth / 2,
+    maxZ: z + depth / 2,
+    height: height
+  });
+}
 
-        <div style="min-width:240px" class="p2-col">
-          <h3>Player 2</h3>
-          <div id="p2-options" class="choices"></div>
-        </div>
-
-        <div class="char-info right" aria-hidden="true"></div>
-      </div>
-    `;
-    document.body.appendChild(el);
-  }
-
-  const p1Options = el.querySelector('#p1-options') || (function(){ const d = document.createElement('div'); d.id='p1-options'; d.className='choices'; el.querySelector('.panel').prepend(d); return d; })();
-  const p2Options = el.querySelector('#p2-options') || (function(){ const d = document.createElement('div'); d.id='p2-options'; d.className='choices'; el.querySelector('.panel').children[1].appendChild(d); return d; })();
-
-  // populate thumbnails only if empty
-  if (p1Options.children.length === 0 && p2Options.children.length === 0) {
-    function makeOption(name, playerIndex) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'char-option';
-      wrapper.style.display = 'flex';
-      wrapper.style.flexDirection = 'column';
-      wrapper.style.alignItems = 'center';
-      wrapper.style.gap = '6px';
-
-      const img = document.createElement('img');
-      img.src = (framesIndex[name] && framesIndex[name].idle && framesIndex[name].idle[0]) || getFramesFor(name).idle[0];
-      img.alt = name;
-      img.title = name;
-      img.className = 'char-thumb';
-      img.dataset.char = name;
-
-      const label = document.createElement('div');
-      label.className = 'char-name';
-      label.textContent = (characterInfos[name] && characterInfos[name].display) ? characterInfos[name].display : name;
-      label.style.fontSize = '13px';
-      label.style.letterSpacing = '1px';
-      label.style.color = 'rgba(255,255,255,0.9)';
-
-      wrapper.appendChild(img);
-      wrapper.appendChild(label);
-
-      // click: select and update HUD/selection
-      img.addEventListener('click', () => {
-        selectedCharacters[playerIndex] = name;
-        const container = playerIndex === 0 ? p1Options : p2Options;
-        Array.from(container.querySelectorAll('img')).forEach(i => i.classList.remove('selected'));
-        img.classList.add('selected');
-        // update info panel to show story for selected character
-        const info = el.querySelector('.char-info');
-        if (info) updateCharacterInfo(info, name);
-      });
-
-      // hover: preview info (update left or right based on playerIndex)
-      img.addEventListener('mouseenter', () => {
-        const info = el.querySelector(playerIndex === 0 ? '.char-info.left' : '.char-info.right');
-        if (info) updateCharacterInfo(info, name);
-      });
-      img.addEventListener('mouseleave', () => {
-        const info = el.querySelector(playerIndex === 0 ? '.char-info.left' : '.char-info.right');
-        if (info) {
-          const current = selectedCharacters[playerIndex] || null;
-          if (current) updateCharacterInfo(info, current);
-        }
-      });
-
-      return wrapper;
-    }
-
-    characterOptions.forEach((name) => {
-      p1Options.appendChild(makeOption(name, 0));
-      p2Options.appendChild(makeOption(name, 1));
-    });
-
-    // default highlight
-    const p1Imgs = p1Options.querySelectorAll('img');
-    const p2Imgs = p2Options.querySelectorAll('img');
-    if (p1Imgs[0]) p1Imgs[0].classList.add('selected');
-    if (p2Imgs[0]) p2Imgs[0].classList.add('selected');
-  }
-
-  // Add or ensure info panels on both sides to show story/details
-  let infoLeft = el.querySelector('.char-info.left');
-  let infoRight = el.querySelector('.char-info.right');
-  function makeInfoContent(panelEl) {
-    panelEl.innerHTML = `
-      <div class="char-info-inner">
-        <img class="char-info-img" src="" alt="portrait" />
-        <div class="char-info-text">
-          <div class="char-info-name"></div>
-          <div class="char-info-title"></div>
-          <p class="char-info-desc"></p>
-        </div>
-      </div>
-    `;
-  }
-  if (infoLeft) makeInfoContent(infoLeft);
-  if (infoRight) makeInfoContent(infoRight);
-
-  function updateCharacterInfo(panelEl, name) {
-    const info = characterInfos[name] || { display: name, title: '', desc: '' };
-    const imgEl = panelEl.querySelector('.char-info-img');
-    const nameEl = panelEl.querySelector('.char-info-name');
-    const titleEl = panelEl.querySelector('.char-info-title');
-    const descEl = panelEl.querySelector('.char-info-desc');
-    if (imgEl) {
-      if (iconsAvailable[name]) imgEl.src = iconPathFor(name);
-      else if (thumbnailsCache[name]) imgEl.src = thumbnailsCache[name].src;
-      else if (framesIndex[name] && framesIndex[name].idle && framesIndex[name].idle[0]) imgEl.src = framesIndex[name].idle[0];
-      else imgEl.src = '';
-    }
-    if (nameEl) nameEl.textContent = info.display || name;
-    if (titleEl) titleEl.textContent = info.title || '';
-    if (descEl) descEl.textContent = info.desc || '';
-  }
-
-  // Initialize both info panels with current selections
-  try { if (infoLeft) updateCharacterInfo(infoLeft, selectedCharacters[0] || characterOptions[0]); } catch (e) {}
-  try { if (infoRight) updateCharacterInfo(infoRight, selectedCharacters[1] || characterOptions[0]); } catch (e) {}
-
-  // wire buttons (only add listeners once)
-  if (!el.dataset.wired) {
-    const confirmBtn = el.querySelector('#char-confirm');
-    const cancelBtn = el.querySelector('#char-cancel');
+function checkCollision(x, z, radius = 1.5) {
+  for (const box of collisionBoxes) {
+    // Find closest point on box to player
+    const closestX = Math.max(box.minX, Math.min(x, box.maxX));
+    const closestZ = Math.max(box.minZ, Math.min(z, box.maxZ));
     
-    if (confirmBtn) confirmBtn.addEventListener('click', () => { 
-        // Hide/remove the character selection first to avoid stacking/z-index races
-        const cs = document.getElementById('char-selection');
-        if (cs) {
-          try { cs.remove(); } catch (e) { try { cs.parentNode && cs.parentNode.removeChild(cs); } catch(e){} }
-        }
+    // Calculate distance
+    const distX = x - closestX;
+    const distZ = z - closestZ;
+    const distance = Math.sqrt(distX * distX + distZ * distZ);
+    
+    if (distance < radius) {
+      return { collision: true, box, closestX, closestZ, distX, distZ, distance };
+    }
+  }
+  return { collision: false };
+}
 
-        // If opened from pause, apply changes and go back to paused flow
-        if (gameState.status === 'paused') {
-          applyCharacterChangeDuringPause();
-          // Re-show pause menu so user can continue (ensure state consistency)
-          try { showPauseMenu(); } catch (e) {}
-        } else {
-          // For normal flow, show dynamic map selection
-          try { showMapSelection(); } catch (err) { console.warn('[UI] showMapSelection failed', err); }
-        }
-        }
+// ===== CREATE WORLD =====
+function createWorld() {
+  // Ground plane (grass) - much larger
+  const groundGeometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
+  const ground = new THREE.Mesh(groundGeometry, grassMaterial);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // Add terrain variation
+  const vertices = ground.geometry.attributes.position.array;
+  for (let i = 0; i < vertices.length; i += 3) {
+    const x = vertices[i];
+    const z = vertices[i + 1];
+    vertices[i + 2] = Math.sin(x * 0.01) * Math.cos(z * 0.01) * 3 + Math.random() * 0.5;
+  }
+  ground.geometry.attributes.position.needsUpdate = true;
+  ground.geometry.computeVertexNormals();
+
+  // Create all landmarks
+  createBorobudurTemple(0, 0);
+  createPrambananTemple(200, 200);
+  createLempuyangTemple(-200, 200);
+  createDanauBatur(0, -250);
+
+  // Create paths connecting landmarks
+  createAllPaths();
+
+  // Create trees (avoiding landmarks)
+  createTrees();
+
+  // Create POI markers
+  createPOIMarkers();
+}
+
+// ===== BOROBUDUR TEMPLE =====
+function createBorobudurTemple(offsetX, offsetZ) {
+  const templeGroup = new THREE.Group();
+  templeGroup.position.set(offsetX, 0, offsetZ);
+
+  // Base platform (Kamadhatu)
+  const baseSize = 60;
+  const baseHeight = 2;
+  const baseGeom = new THREE.BoxGeometry(baseSize, baseHeight, baseSize);
+  const base = new THREE.Mesh(baseGeom, stoneMaterial);
+  base.position.y = baseHeight / 2;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  templeGroup.add(base);
+  
+  // Add collision for base
+  addCollisionBox(offsetX, offsetZ, baseSize + 4, baseSize + 4);
+
+  // Create stepped pyramid levels (Rupadhatu)
+  const levels = 5;
+  for (let i = 0; i < levels; i++) {
+    const levelSize = baseSize - (i + 1) * 8;
+    const levelHeight = 3;
+    const levelGeom = new THREE.BoxGeometry(levelSize, levelHeight, levelSize);
+    const level = new THREE.Mesh(levelGeom, stoneMaterial);
+    level.position.y = baseHeight + (i + 1) * levelHeight - levelHeight / 2;
+    level.castShadow = true;
+    level.receiveShadow = true;
+    templeGroup.add(level);
+
+    // Add small stupas on each level
+    const stupaCount = 8 - i;
+    for (let j = 0; j < stupaCount; j++) {
+      const angle = (j / stupaCount) * Math.PI * 2;
+      const radius = levelSize / 2 - 2;
+      const stupa = createStupa(1.5);
+      stupa.position.set(
+        Math.cos(angle) * radius,
+        baseHeight + (i + 1) * levelHeight,
+        Math.sin(angle) * radius
+      );
+      templeGroup.add(stupa);
+    }
+  }
+
+  // Create circular platforms (Arupadhatu)
+  const circularLevels = 3;
+  const topY = baseHeight + levels * 3;
+  for (let i = 0; i < circularLevels; i++) {
+    const radius = 15 - i * 4;
+    const circleGeom = new THREE.CylinderGeometry(radius, radius, 1.5, 32);
+    const circle = new THREE.Mesh(circleGeom, stoneMaterial);
+    circle.position.y = topY + i * 2;
+    circle.castShadow = true;
+    circle.receiveShadow = true;
+    templeGroup.add(circle);
+
+    // Add perforated stupas
+    const perfStupaCount = 16 - i * 4;
+    for (let j = 0; j < perfStupaCount; j++) {
+      const angle = (j / perfStupaCount) * Math.PI * 2;
+      const stupaRadius = radius - 2;
+      const perfStupa = createPerforatedStupa(2);
+      perfStupa.position.set(
+        Math.cos(angle) * stupaRadius,
+        topY + i * 2 + 1,
+        Math.sin(angle) * stupaRadius
+      );
+      templeGroup.add(perfStupa);
+    }
+  }
+
+  // Main stupa at top
+  const mainStupa = createMainStupa();
+  mainStupa.position.y = topY + circularLevels * 2 + 2;
+  templeGroup.add(mainStupa);
+
+  scene.add(templeGroup);
+}
+
+// ===== PRAMBANAN TEMPLE =====
+function createPrambananTemple(offsetX, offsetZ) {
+  const templeGroup = new THREE.Group();
+  templeGroup.position.set(offsetX, 0, offsetZ);
+
+  // Base platform
+  const platformSize = 80;
+  const platformGeom = new THREE.BoxGeometry(platformSize, 2, platformSize);
+  const platform = new THREE.Mesh(platformGeom, darkStoneMaterial);
+  platform.position.y = 1;
+  platform.receiveShadow = true;
+  templeGroup.add(platform);
+  
+  // Add collision for platform
+  addCollisionBox(offsetX, offsetZ, platformSize + 4, platformSize + 4);
+
+  // Main temples (Trimurti)
+  const templePositions = [
+    { x: 0, z: 0, height: 47, name: 'Siwa' },      // Center - tallest
+    { x: -15, z: 0, height: 33, name: 'Brahma' },  // South
+    { x: 15, z: 0, height: 33, name: 'Wisnu' },    // North
+  ];
+
+  templePositions.forEach(pos => {
+    const temple = createPrambananSpire(pos.height);
+    temple.position.set(pos.x, 2, pos.z);
+    templeGroup.add(temple);
+  });
+
+  // Wahana temples (smaller, facing main temples)
+  const wahanaPositions = [
+    { x: 0, z: 15, height: 22 },   // Nandi (facing Siwa)
+    { x: -15, z: 15, height: 18 }, // Angsa (facing Brahma)
+    { x: 15, z: 15, height: 18 },  // Garuda (facing Wisnu)
+  ];
+
+  wahanaPositions.forEach(pos => {
+    const temple = createPrambananSpire(pos.height);
+    temple.position.set(pos.x, 2, pos.z);
+    templeGroup.add(temple);
+  });
+
+  // Smaller perwara temples around
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const radius = 35;
+    const smallTemple = createPrambananSpire(8);
+    smallTemple.position.set(
+      Math.cos(angle) * radius,
+      2,
+      Math.sin(angle) * radius
     );
-    if (cancelBtn) cancelBtn.addEventListener('click', () => {
-      // Close selection. If opened from pause, re-open pause menu; otherwise return to main menu.
-      closeCharacterSelectionUI();
-      if (gameState.status === 'paused') {
-        try { showPauseMenu(); } catch (e) {}
-      } else {
-        // Use returnToMenu() to ensure full menu state reset and music update.
-        try { returnToMenu(); } catch (e) {
-          if (gameState.menuEl) gameState.menuEl.style.display = 'block';
-        }
+    templeGroup.add(smallTemple);
+  }
+
+  scene.add(templeGroup);
+}
+
+function createPrambananSpire(height) {
+  const group = new THREE.Group();
+
+  // Base
+  const baseSize = height * 0.3;
+  const baseGeom = new THREE.BoxGeometry(baseSize, height * 0.15, baseSize);
+  const base = new THREE.Mesh(baseGeom, redStoneMaterial);
+  base.position.y = height * 0.075;
+  base.castShadow = true;
+  group.add(base);
+
+  // Body with relief panels
+  const bodyGeom = new THREE.BoxGeometry(baseSize * 0.8, height * 0.4, baseSize * 0.8);
+  const body = new THREE.Mesh(bodyGeom, redStoneMaterial);
+  body.position.y = height * 0.35;
+  body.castShadow = true;
+  group.add(body);
+
+  // Roof tiers
+  const tiers = 5;
+  for (let i = 0; i < tiers; i++) {
+    const tierSize = baseSize * (0.7 - i * 0.1);
+    const tierHeight = height * 0.08;
+    const tierGeom = new THREE.ConeGeometry(tierSize / 2, tierHeight, 4);
+    const tier = new THREE.Mesh(tierGeom, redStoneMaterial);
+    tier.position.y = height * 0.55 + i * tierHeight * 0.8;
+    tier.rotation.y = Math.PI / 4;
+    tier.castShadow = true;
+    group.add(tier);
+  }
+
+  // Top finial
+  const finialGeom = new THREE.ConeGeometry(0.5, height * 0.1, 8);
+  const finial = new THREE.Mesh(finialGeom, redStoneMaterial);
+  finial.position.y = height * 0.95;
+  finial.castShadow = true;
+  group.add(finial);
+
+  return group;
+}
+
+// ===== LEMPUYANG TEMPLE =====
+function createLempuyangTemple(offsetX, offsetZ) {
+  const templeGroup = new THREE.Group();
+  templeGroup.position.set(offsetX, 0, offsetZ);
+
+  // Steps leading up
+  const stepsCount = 10;
+  for (let i = 0; i < stepsCount; i++) {
+    const stepGeom = new THREE.BoxGeometry(12, 0.5, 3);
+    const step = new THREE.Mesh(stepGeom, stoneMaterial);
+    step.position.set(0, i * 0.5, 20 - i * 2);
+    step.receiveShadow = true;
+    step.castShadow = true;
+    templeGroup.add(step);
+  }
+
+  // Main platform
+  const platformGeom = new THREE.BoxGeometry(40, 1, 30);
+  const platform = new THREE.Mesh(platformGeom, stoneMaterial);
+  platform.position.set(0, stepsCount * 0.5, -5);
+  platform.receiveShadow = true;
+  templeGroup.add(platform);
+  
+  // Add collision
+  addCollisionBox(offsetX, offsetZ - 5, 44, 34);
+
+  // Gates of Heaven (Candi Bentar)
+  const gateHeight = 15;
+  const gateWidth = 4;
+  const gateDepth = 3;
+
+  // Left gate
+  const leftGateGroup = createGatePart(gateHeight, gateWidth, gateDepth);
+  leftGateGroup.position.set(-5, stepsCount * 0.5 + gateHeight / 2, -5);
+  templeGroup.add(leftGateGroup);
+
+  // Right gate
+  const rightGateGroup = createGatePart(gateHeight, gateWidth, gateDepth);
+  rightGateGroup.position.set(5, stepsCount * 0.5 + gateHeight / 2, -5);
+  rightGateGroup.scale.x = -1;
+  templeGroup.add(rightGateGroup);
+
+  // Meru towers on sides
+  const meruLeft = createMeru(8);
+  meruLeft.position.set(-18, stepsCount * 0.5 + 0.5, -10);
+  templeGroup.add(meruLeft);
+
+  const meruRight = createMeru(8);
+  meruRight.position.set(18, stepsCount * 0.5 + 0.5, -10);
+  templeGroup.add(meruRight);
+
+  // Guardian statues
+  const guardianLeft = createGuardianStatue();
+  guardianLeft.position.set(-12, stepsCount * 0.5 + 0.5, 5);
+  templeGroup.add(guardianLeft);
+
+  const guardianRight = createGuardianStatue();
+  guardianRight.position.set(12, stepsCount * 0.5 + 0.5, 5);
+  guardianRight.scale.x = -1;
+  templeGroup.add(guardianRight);
+
+  scene.add(templeGroup);
+}
+
+function createGatePart(height, width, depth) {
+  const group = new THREE.Group();
+
+  // Main body - tapered
+  for (let i = 0; i < 5; i++) {
+    const tierWidth = width - i * 0.3;
+    const tierHeight = height / 5;
+    const tierGeom = new THREE.BoxGeometry(tierWidth, tierHeight, depth - i * 0.2);
+    const tier = new THREE.Mesh(tierGeom, stoneMaterial);
+    tier.position.y = -height / 2 + tierHeight / 2 + i * tierHeight;
+    tier.position.x = -tierWidth / 4;
+    tier.castShadow = true;
+    group.add(tier);
+  }
+
+  // Decorative top
+  const topGeom = new THREE.ConeGeometry(width / 2, height * 0.2, 4);
+  const top = new THREE.Mesh(topGeom, stoneMaterial);
+  top.position.y = height / 2 + height * 0.1;
+  top.position.x = -width / 4;
+  top.rotation.y = Math.PI / 4;
+  top.castShadow = true;
+  group.add(top);
+
+  return group;
+}
+
+function createMeru(height) {
+  const group = new THREE.Group();
+
+  // Base
+  const baseGeom = new THREE.BoxGeometry(4, 2, 4);
+  const base = new THREE.Mesh(baseGeom, stoneMaterial);
+  base.position.y = 1;
+  base.castShadow = true;
+  group.add(base);
+
+  // Tiered roofs (ijuk style)
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x2d2d2d, roughness: 1 });
+  const tiers = 5;
+  for (let i = 0; i < tiers; i++) {
+    const roofSize = 3.5 - i * 0.4;
+    const roofGeom = new THREE.ConeGeometry(roofSize, 1.5, 4);
+    const roof = new THREE.Mesh(roofGeom, roofMat);
+    roof.position.y = 3 + i * 1.2;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    group.add(roof);
+  }
+
+  return group;
+}
+
+function createGuardianStatue() {
+  const group = new THREE.Group();
+
+  // Base
+  const baseGeom = new THREE.BoxGeometry(2, 1, 2);
+  const base = new THREE.Mesh(baseGeom, stoneMaterial);
+  base.position.y = 0.5;
+  group.add(base);
+
+  // Body
+  const bodyGeom = new THREE.CylinderGeometry(0.8, 1, 3, 8);
+  const body = new THREE.Mesh(bodyGeom, stoneMaterial);
+  body.position.y = 2.5;
+  body.castShadow = true;
+  group.add(body);
+
+  // Head
+  const headGeom = new THREE.SphereGeometry(0.7, 8, 8);
+  const head = new THREE.Mesh(headGeom, stoneMaterial);
+  head.position.y = 4.5;
+  head.castShadow = true;
+  group.add(head);
+
+  return group;
+}
+
+// ===== DANAU BATUR =====
+function createDanauBatur(offsetX, offsetZ) {
+  const lakeGroup = new THREE.Group();
+  lakeGroup.position.set(offsetX, 0, offsetZ);
+
+  // Lake (large circular)
+  const lakeRadius = 60;
+  const lakeGeom = new THREE.CircleGeometry(lakeRadius, 64);
+  const lake = new THREE.Mesh(lakeGeom, waterMaterial);
+  lake.rotation.x = -Math.PI / 2;
+  lake.position.y = 0.1;
+  lakeGroup.add(lake);
+
+  // Caldera rim (mountains around)
+  const rimSegments = 24;
+  for (let i = 0; i < rimSegments; i++) {
+    const angle = (i / rimSegments) * Math.PI * 2;
+    const rimRadius = lakeRadius + 15 + Math.random() * 10;
+    const mountainHeight = 15 + Math.random() * 20;
+    
+    const mountainGeom = new THREE.ConeGeometry(12, mountainHeight, 6);
+    const mountainMat = new THREE.MeshStandardMaterial({ 
+      color: new THREE.Color().setHSL(0.3, 0.3, 0.3 + Math.random() * 0.1),
+      roughness: 0.9 
+    });
+    const mountain = new THREE.Mesh(mountainGeom, mountainMat);
+    mountain.position.set(
+      Math.cos(angle) * rimRadius,
+      mountainHeight / 2 - 5,
+      Math.sin(angle) * rimRadius
+    );
+    mountain.castShadow = true;
+    lakeGroup.add(mountain);
+  }
+
+  // Gunung Batur (active volcano) - one prominent peak
+  const volcanoGeom = new THREE.ConeGeometry(25, 45, 8);
+  const volcanoMat = new THREE.MeshStandardMaterial({ color: 0x3d3d3d, roughness: 0.85 });
+  const volcano = new THREE.Mesh(volcanoGeom, volcanoMat);
+  volcano.position.set(40, 17, -30);
+  volcano.castShadow = true;
+  lakeGroup.add(volcano);
+  
+  // Add collision for volcano
+  addCollisionBox(offsetX + 40, offsetZ - 30, 50, 50);
+
+  // Crater at top
+  const craterGeom = new THREE.CylinderGeometry(8, 5, 5, 8, 1, true);
+  const craterMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, side: THREE.DoubleSide });
+  const crater = new THREE.Mesh(craterGeom, craterMat);
+  crater.position.set(40, 40, -30);
+  lakeGroup.add(crater);
+
+  // Smoke particles (simple representation)
+  const smokeGeom = new THREE.SphereGeometry(3, 8, 8);
+  const smokeMat = new THREE.MeshBasicMaterial({ 
+    color: 0xcccccc, 
+    transparent: true, 
+    opacity: 0.4 
+  });
+  for (let i = 0; i < 5; i++) {
+    const smoke = new THREE.Mesh(smokeGeom, smokeMat.clone());
+    smoke.position.set(
+      40 + (Math.random() - 0.5) * 5,
+      42 + i * 3,
+      -30 + (Math.random() - 0.5) * 5
+    );
+    smoke.userData.isSmoke = true;
+    smoke.userData.baseY = smoke.position.y;
+    lakeGroup.add(smoke);
+  }
+
+  // Pura Ulun Danu Batur (temple on rim)
+  const puraGroup = new THREE.Group();
+  puraGroup.position.set(-50, 5, 40);
+
+  const puraBase = new THREE.BoxGeometry(15, 2, 10);
+  const puraBaseMesh = new THREE.Mesh(puraBase, stoneMaterial);
+  puraBaseMesh.position.y = 1;
+  puraGroup.add(puraBaseMesh);
+
+  const puraMeru = createMeru(12);
+  puraMeru.position.set(0, 2, 0);
+  puraGroup.add(puraMeru);
+
+  lakeGroup.add(puraGroup);
+  
+  // Add collision for pura
+  addCollisionBox(offsetX - 50, offsetZ + 40, 20, 15);
+
+  // Small boats on lake
+  for (let i = 0; i < 5; i++) {
+    const boat = createBoat();
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 20 + Math.random() * 30;
+    boat.position.set(
+      Math.cos(angle) * radius,
+      0.3,
+      Math.sin(angle) * radius
+    );
+    boat.rotation.y = angle + Math.PI / 2;
+    boat.userData.isBoat = true;
+    boat.userData.angle = angle;
+    boat.userData.radius = radius;
+    lakeGroup.add(boat);
+  }
+
+  scene.add(lakeGroup);
+}
+
+function createBoat() {
+  const group = new THREE.Group();
+
+  const boatMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+  
+  // Hull
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(-2, 0);
+  hullShape.quadraticCurveTo(-2.5, 0.5, -2, 1);
+  hullShape.lineTo(2, 1);
+  hullShape.quadraticCurveTo(2.5, 0.5, 2, 0);
+  hullShape.lineTo(-2, 0);
+
+  const extrudeSettings = { depth: 1, bevelEnabled: false };
+  const hullGeom = new THREE.ExtrudeGeometry(hullShape, extrudeSettings);
+  const hull = new THREE.Mesh(hullGeom, boatMat);
+  hull.rotation.x = -Math.PI / 2;
+  hull.position.y = 0.2;
+  group.add(hull);
+
+  return group;
+}
+
+function createStupa(scale = 1) {
+  const group = new THREE.Group();
+
+  // Base
+  const baseGeom = new THREE.BoxGeometry(1.2 * scale, 0.3 * scale, 1.2 * scale);
+  const base = new THREE.Mesh(baseGeom, stoneMaterial);
+  base.position.y = 0.15 * scale;
+  base.castShadow = true;
+  group.add(base);
+
+  // Body (bell shape)
+  const bodyGeom = new THREE.SphereGeometry(0.5 * scale, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  const body = new THREE.Mesh(bodyGeom, stoneMaterial);
+  body.position.y = 0.3 * scale;
+  body.castShadow = true;
+  group.add(body);
+
+  // Top spire
+  const spireGeom = new THREE.ConeGeometry(0.15 * scale, 0.6 * scale, 8);
+  const spire = new THREE.Mesh(spireGeom, stoneMaterial);
+  spire.position.y = 1 * scale;
+  spire.castShadow = true;
+  group.add(spire);
+
+  return group;
+}
+
+function createPerforatedStupa(scale = 1) {
+  const group = new THREE.Group();
+
+  // Base
+  const baseGeom = new THREE.CylinderGeometry(0.8 * scale, 1 * scale, 0.3 * scale, 16);
+  const base = new THREE.Mesh(baseGeom, stoneMaterial);
+  base.position.y = 0.15 * scale;
+  base.castShadow = true;
+  group.add(base);
+
+  // Perforated bell (use wireframe for now, can be improved with lattice geometry)
+  const bellGeom = new THREE.SphereGeometry(1 * scale, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.7);
+  const bellMat = stoneMaterial.clone();
+  const bell = new THREE.Mesh(bellGeom, bellMat);
+  bell.position.y = 0.5 * scale;
+  bell.castShadow = true;
+  group.add(bell);
+
+  // Diamond-shaped holes (represented by darker insets)
+  const holeGeom = new THREE.PlaneGeometry(0.3 * scale, 0.4 * scale);
+  const holeMat = new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide });
+  const holesCount = 8;
+  for (let i = 0; i < holesCount; i++) {
+    const angle = (i / holesCount) * Math.PI * 2;
+    const hole = new THREE.Mesh(holeGeom, holeMat);
+    hole.position.set(
+      Math.cos(angle) * 0.95 * scale,
+      0.8 * scale,
+      Math.sin(angle) * 0.95 * scale
+    );
+    hole.rotation.y = -angle + Math.PI / 2;
+    hole.rotation.z = Math.PI / 4;
+    group.add(hole);
+  }
+
+  // Top
+  const topGeom = new THREE.ConeGeometry(0.2 * scale, 0.5 * scale, 8);
+  const top = new THREE.Mesh(topGeom, stoneMaterial);
+  top.position.y = 1.8 * scale;
+  top.castShadow = true;
+  group.add(top);
+
+  return group;
+}
+
+function createMainStupa() {
+  const group = new THREE.Group();
+
+  // Large base
+  const baseGeom = new THREE.CylinderGeometry(4, 5, 2, 32);
+  const base = new THREE.Mesh(baseGeom, stoneMaterial);
+  base.position.y = 1;
+  base.castShadow = true;
+  group.add(base);
+
+  // Bell
+  const bellGeom = new THREE.SphereGeometry(3.5, 32, 24, 0, Math.PI * 2, 0, Math.PI / 2);
+  const bell = new THREE.Mesh(bellGeom, stoneMaterial);
+  bell.position.y = 2;
+  bell.castShadow = true;
+  group.add(bell);
+
+  // Spire rings
+  for (let i = 0; i < 9; i++) {
+    const ringGeom = new THREE.TorusGeometry(1.5 - i * 0.12, 0.15, 8, 16);
+    const ring = new THREE.Mesh(ringGeom, stoneMaterial);
+    ring.position.y = 5.5 + i * 0.5;
+    ring.rotation.x = Math.PI / 2;
+    ring.castShadow = true;
+    group.add(ring);
+  }
+
+  // Top finial
+  const finialGeom = new THREE.SphereGeometry(0.5, 16, 16);
+  const finial = new THREE.Mesh(finialGeom, stoneMaterial);
+  finial.position.y = 10.5;
+  finial.castShadow = true;
+  group.add(finial);
+
+  return group;
+}
+
+function createAllPaths() {
+  // Create paths connecting all landmarks
+  const pathConnections = [
+    // From Borobudur center
+    { start: { x: 0, z: 40 }, end: { x: 0, z: 100 } },
+    { start: { x: 40, z: 0 }, end: { x: 100, z: 100 } },      // To Prambanan
+    { start: { x: -40, z: 0 }, end: { x: -100, z: 100 } },    // To Lempuyang
+    { start: { x: 0, z: -40 }, end: { x: 0, z: -150 } },      // To Danau Batur
+    
+    // Cross paths
+    { start: { x: 100, z: 100 }, end: { x: 200, z: 200 } },   // Continue to Prambanan
+    { start: { x: -100, z: 100 }, end: { x: -200, z: 200 } }, // Continue to Lempuyang
+    { start: { x: 0, z: -150 }, end: { x: 0, z: -250 } },     // Continue to Danau Batur
+    
+    // Connecting paths between landmarks
+    { start: { x: 200, z: 200 }, end: { x: -200, z: 200 } },  // Prambanan to Lempuyang
+    { start: { x: 200, z: 200 }, end: { x: 100, z: -150 } },  // Prambanan to Danau Batur
+    { start: { x: -200, z: 200 }, end: { x: -100, z: -150 } }, // Lempuyang to Danau Batur
+  ];
+
+  pathConnections.forEach(path => {
+    const dx = path.end.x - path.start.x;
+    const dz = path.end.z - path.start.z;
+    const length = Math.sqrt(dx * dx + dz * dz);
+    const angle = Math.atan2(dx, dz);
+    
+    const pathGeom = new THREE.PlaneGeometry(6, length);
+    const pathMesh = new THREE.Mesh(pathGeom, pathMaterial);
+    pathMesh.rotation.x = -Math.PI / 2;
+    pathMesh.rotation.z = -angle;
+    pathMesh.position.set(
+      (path.start.x + path.end.x) / 2,
+      0.05,
+      (path.start.z + path.end.z) / 2
+    );
+    pathMesh.receiveShadow = true;
+    scene.add(pathMesh);
+  });
+}
+
+function createTrees() {
+  const treePositions = [];
+  
+  // Landmark positions to avoid
+  const exclusionZones = [
+    { x: 0, z: 0, radius: 80 },       // Borobudur
+    { x: 200, z: 200, radius: 100 },  // Prambanan
+    { x: -200, z: 200, radius: 60 },  // Lempuyang
+    { x: 0, z: -250, radius: 100 },   // Danau Batur
+  ];
+
+  // Generate random tree positions
+  for (let i = 0; i < 200; i++) {
+    const x = (Math.random() - 0.5) * 900;
+    const z = (Math.random() - 0.5) * 900;
+    
+    // Check if position is in any exclusion zone
+    let inExclusionZone = false;
+    for (const zone of exclusionZones) {
+      const dist = Math.sqrt((x - zone.x) ** 2 + (z - zone.z) ** 2);
+      if (dist < zone.radius) {
+        inExclusionZone = true;
+        break;
+      }
+    }
+    
+    if (!inExclusionZone) {
+      treePositions.push({ x, z });
+    }
+  }
+
+  treePositions.forEach(pos => {
+    const tree = createTree();
+    tree.position.set(pos.x, 0, pos.z);
+    scene.add(tree);
+  });
+}
+
+function createTree() {
+  const group = new THREE.Group();
+
+  // Trunk
+  const trunkGeom = new THREE.CylinderGeometry(0.3, 0.5, 4, 8);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 1 });
+  const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+  trunk.position.y = 2;
+  trunk.castShadow = true;
+  group.add(trunk);
+
+  // Foliage (multiple spheres for natural look)
+  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 0.8 });
+  
+  const foliage1 = new THREE.Mesh(new THREE.SphereGeometry(2, 8, 8), foliageMat);
+  foliage1.position.set(0, 5, 0);
+  foliage1.castShadow = true;
+  group.add(foliage1);
+
+  const foliage2 = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 8), foliageMat);
+  foliage2.position.set(1, 6, 0.5);
+  foliage2.castShadow = true;
+  group.add(foliage2);
+
+  const foliage3 = new THREE.Mesh(new THREE.SphereGeometry(1.2, 8, 8), foliageMat);
+  foliage3.position.set(-0.8, 6.5, -0.3);
+  foliage3.castShadow = true;
+  group.add(foliage3);
+
+  // Random scale variation
+  const scale = 0.8 + Math.random() * 0.6;
+  group.scale.set(scale, scale, scale);
+
+  return group;
+}
+
+function createPOIMarkers() {
+  pointsOfInterest.forEach(poi => {
+    // Create a glowing marker
+    const markerGroup = new THREE.Group();
+    markerGroup.userData = { poi };
+
+    // Pillar
+    const pillarGeom = new THREE.CylinderGeometry(0.2, 0.3, 2, 8);
+    const pillarMat = new THREE.MeshStandardMaterial({ 
+      color: 0xffcc00, 
+      emissive: 0xffaa00,
+      emissiveIntensity: 0.3
+    });
+    const pillar = new THREE.Mesh(pillarGeom, pillarMat);
+    pillar.position.y = 1;
+    markerGroup.add(pillar);
+
+    // Floating orb
+    const orbGeom = new THREE.SphereGeometry(0.4, 16, 16);
+    const orbMat = new THREE.MeshStandardMaterial({
+      color: 0xffff00,
+      emissive: 0xffcc00,
+      emissiveIntensity: 0.8,
+      transparent: true,
+      opacity: 0.8
+    });
+    const orb = new THREE.Mesh(orbGeom, orbMat);
+    orb.position.y = 2.5;
+    orb.userData.isOrb = true;
+    markerGroup.add(orb);
+
+    // Point light
+    const light = new THREE.PointLight(0xffcc00, 1, 10);
+    light.position.y = 2.5;
+    markerGroup.add(light);
+
+    markerGroup.position.set(poi.position.x, 0, poi.position.z);
+    scene.add(markerGroup);
+  });
+}
+
+// ===== PLAYER (2D SPRITE IN 3D WORLD) =====
+class Player {
+  constructor() {
+    this.position = new THREE.Vector3(0, 0, 80);
+    this.velocity = new THREE.Vector3();
+    this.rotation = 0;
+    this.speed = 18;
+    this.runSpeed = 30;
+    this.jumpForce = 12;
+    this.gravity = 30;
+    this.isGrounded = true;
+    this.isMoving = false;
+    this.isRunning = false;
+    
+    // Animation
+    this.currentAnim = 'idle';
+    this.frameIndex = 0;
+    this.frameTimer = 0;
+    this.frameSpeed = 0.12;
+    
+    // Textures
+    this.idleTextures = [];
+    this.walkTextures = [];
+    
+    // Create sprite
+    this.mesh = null;
+    this.material = null;
+  }
+
+  async loadTextures(charName) {
+    const charData = characterData[charName];
+    if (!charData) return;
+
+    const loader = new THREE.TextureLoader();
+    
+    // Load idle textures
+    this.idleTextures = await Promise.all(
+      charData.idle.map(path => {
+        return new Promise(resolve => {
+          loader.load(path, tex => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            resolve(tex);
+          }, undefined, () => resolve(null));
+        });
+      })
+    );
+    this.idleTextures = this.idleTextures.filter(t => t !== null);
+
+    // Load walk textures
+    this.walkTextures = await Promise.all(
+      charData.walk.map(path => {
+        return new Promise(resolve => {
+          loader.load(path, tex => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.magFilter = THREE.NearestFilter;
+            tex.minFilter = THREE.NearestFilter;
+            resolve(tex);
+          }, undefined, () => resolve(null));
+        });
+      })
+    );
+    this.walkTextures = this.walkTextures.filter(t => t !== null);
+
+    // Create sprite material and mesh
+    if (this.idleTextures.length > 0) {
+      this.material = new THREE.SpriteMaterial({
+        map: this.idleTextures[0],
+        transparent: true
+      });
+      
+      this.mesh = new THREE.Sprite(this.material);
+      this.mesh.scale.set(4, 5, 1);
+      this.mesh.position.copy(this.position);
+      this.mesh.position.y += 2.5;
+      scene.add(this.mesh);
+    }
+  }
+
+  update(delta, keys, cameraAngle) {
+    if (!this.mesh) return;
+
+    // Movement input
+    let moveX = 0;
+    let moveZ = 0;
+    this.isMoving = false;
+    this.isRunning = keys['ShiftLeft'] || keys['ShiftRight'];
+
+    // Get input direction (relative to screen)
+    if (keys['KeyW'] || keys['ArrowUp']) { moveZ = -1; this.isMoving = true; }
+    if (keys['KeyS'] || keys['ArrowDown']) { moveZ = 1; this.isMoving = true; }
+    if (keys['KeyA'] || keys['ArrowLeft']) { moveX = -1; this.isMoving = true; }
+    if (keys['KeyD'] || keys['ArrowRight']) { moveX = 1; this.isMoving = true; }
+
+    // Normalize diagonal movement
+    if (moveX !== 0 && moveZ !== 0) {
+      const factor = 1 / Math.sqrt(2);
+      moveX *= factor;
+      moveZ *= factor;
+    }
+
+    // Transform movement direction based on camera orientation
+    if (this.isMoving) {
+      // Camera angle is the horizontal rotation of the camera
+      const sin = Math.sin(cameraAngle);
+      const cos = Math.cos(cameraAngle);
+      
+      // Transform input to world space based on camera direction
+      // W = forward (negative Z in camera space) -> towards where camera is looking
+      // S = backward (positive Z in camera space)
+      // A = left (negative X in camera space)
+      // D = right (positive X in camera space)
+      const worldX = moveX * cos + moveZ * sin;
+      const worldZ = -moveX * sin + moveZ * cos;
+      
+      const currentSpeed = this.isRunning ? this.runSpeed : this.speed;
+      this.velocity.x = worldX * currentSpeed;
+      this.velocity.z = worldZ * currentSpeed;
+
+      // Face the direction of movement
+      if (Math.abs(worldX) > 0.01 || Math.abs(worldZ) > 0.01) {
+        this.rotation = Math.atan2(worldX, worldZ);
+      }
+    } else {
+      // Decelerate smoothly when no input
+      this.velocity.x *= 0.85;
+      this.velocity.z *= 0.85;
+      
+      // Stop completely if very slow
+      if (Math.abs(this.velocity.x) < 0.1) this.velocity.x = 0;
+      if (Math.abs(this.velocity.z) < 0.1) this.velocity.z = 0;
+    }
+
+    // Jump
+    if ((keys['Space']) && this.isGrounded) {
+      this.velocity.y = this.jumpForce;
+      this.isGrounded = false;
+    }
+
+    // Apply gravity
+    if (!this.isGrounded) {
+      this.velocity.y -= this.gravity * delta;
+    }
+
+    // ===== COLLISION DETECTION =====
+    const playerRadius = 2.5;
+    
+    // Try X movement first
+    let newX = this.position.x + this.velocity.x * delta;
+    let newZ = this.position.z;
+    
+    if (checkCollision(newX, newZ, playerRadius).collision) {
+      // X blocked, keep original X
+      newX = this.position.x;
+      this.velocity.x = 0;
+    }
+    
+    // Then try Z movement
+    newZ = this.position.z + this.velocity.z * delta;
+    
+    if (checkCollision(newX, newZ, playerRadius).collision) {
+      // Z blocked, keep original Z
+      newZ = this.position.z;
+      this.velocity.z = 0;
+    }
+    
+    // Final check - if still colliding, don't move at all
+    if (checkCollision(newX, newZ, playerRadius).collision) {
+      newX = this.position.x;
+      newZ = this.position.z;
+      this.velocity.x = 0;
+      this.velocity.z = 0;
+    }
+
+    // Apply final position
+    this.position.x = newX;
+    this.position.y += this.velocity.y * delta;
+    this.position.z = newZ;
+
+    // Ground check
+    if (this.position.y <= 0) {
+      this.position.y = 0;
+      this.velocity.y = 0;
+      this.isGrounded = true;
+    }
+
+    // World bounds - larger world
+    const worldBound = 480;
+    this.position.x = THREE.MathUtils.clamp(this.position.x, -worldBound, worldBound);
+    this.position.z = THREE.MathUtils.clamp(this.position.z, -worldBound, worldBound);
+
+    // Update mesh position
+    this.mesh.position.copy(this.position);
+    this.mesh.position.y += 2.5;
+
+    // Animation
+    this.updateAnimation(delta);
+  }
+
+  updateAnimation(delta) {
+    const textures = this.isMoving ? this.walkTextures : this.idleTextures;
+    if (textures.length === 0) return;
+
+    // Adjust frame speed for running
+    const speed = this.isMoving && this.isRunning ? this.frameSpeed * 0.6 : this.frameSpeed;
+
+    this.frameTimer += delta;
+    if (this.frameTimer >= speed) {
+      this.frameTimer = 0;
+      this.frameIndex = (this.frameIndex + 1) % textures.length;
+      this.material.map = textures[this.frameIndex];
+      this.material.needsUpdate = true;
+    }
+
+    // Reset frame index when animation changes
+    const newAnim = this.isMoving ? 'walk' : 'idle';
+    if (newAnim !== this.currentAnim) {
+      this.currentAnim = newAnim;
+      this.frameIndex = 0;
+      this.frameTimer = 0;
+    }
+  }
+
+  setCharacter(charName) {
+    if (this.mesh) {
+      scene.remove(this.mesh);
+    }
+    this.loadTextures(charName);
+  }
+}
+
+// ===== CAMERA CONTROLLER =====
+class CameraController {
+  constructor(camera, target) {
+    this.camera = camera;
+    this.target = target;
+    this.distance = 20;
+    this.minDistance = 8;
+    this.maxDistance = 40;
+    this.rotationX = 0;
+    this.rotationY = Math.PI * 0.2; // Slight elevation
+    this.minRotationY = 0.1;
+    this.maxRotationY = Math.PI / 2 - 0.1;
+    this.mouseSensitivity = 0.003;
+    this.smoothing = 0.1;
+    this.targetPosition = new THREE.Vector3();
+  }
+
+  update(playerPosition) {
+    // Calculate camera position
+    const x = playerPosition.x + this.distance * Math.sin(this.rotationX) * Math.cos(this.rotationY);
+    const y = playerPosition.y + this.distance * Math.sin(this.rotationY) + 5;
+    const z = playerPosition.z + this.distance * Math.cos(this.rotationX) * Math.cos(this.rotationY);
+
+    // Smooth camera movement
+    this.camera.position.lerp(new THREE.Vector3(x, y, z), this.smoothing);
+
+    // Look at player
+    this.targetPosition.copy(playerPosition);
+    this.targetPosition.y += 3;
+    this.camera.lookAt(this.targetPosition);
+  }
+
+  handleMouseMove(movementX, movementY) {
+    this.rotationX -= movementX * this.mouseSensitivity;
+    this.rotationY += movementY * this.mouseSensitivity;
+    this.rotationY = THREE.MathUtils.clamp(this.rotationY, this.minRotationY, this.maxRotationY);
+  }
+
+  handleWheel(deltaY) {
+    this.distance += deltaY * 0.01;
+    this.distance = THREE.MathUtils.clamp(this.distance, this.minDistance, this.maxDistance);
+  }
+
+  getHorizontalAngle() {
+    return this.rotationX;
+  }
+}
+
+// ===== INPUT HANDLING =====
+const keys = {};
+let mouseMovement = { x: 0, y: 0 };
+
+window.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  
+  // Handle pause
+  if (e.code === 'Escape' && gameState.status === 'playing') {
+    togglePause();
+  }
+  
+  // Handle interaction
+  if (e.code === 'KeyE' && gameState.status === 'playing') {
+    handleInteraction();
+  }
+  
+  // Handle loading screen
+  if (e.code === 'Enter' && gameState.status === 'loading') {
+    showCharacterSelection();
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+});
+
+canvas.addEventListener('click', () => {
+  if (gameState.status === 'playing' && !gameState.isPointerLocked) {
+    canvas.requestPointerLock();
+  }
+});
+
+document.addEventListener('pointerlockchange', () => {
+  gameState.isPointerLocked = document.pointerLockElement === canvas;
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (gameState.isPointerLocked && gameState.status === 'playing') {
+    mouseMovement.x = e.movementX;
+    mouseMovement.y = e.movementY;
+  }
+});
+
+canvas.addEventListener('wheel', (e) => {
+  if (gameState.status === 'playing' && cameraController) {
+    cameraController.handleWheel(e.deltaY);
+  }
+});
+
+// ===== UI FUNCTIONS =====
+function showCharacterSelection() {
+  loadingScreen.style.display = 'none';
+  charSelection.style.display = 'flex';
+  gameState.status = 'charSelect';
+  
+  // Populate character options
+  charOptions.innerHTML = '';
+  Object.entries(characterData).forEach(([key, char]) => {
+    const card = document.createElement('div');
+    card.className = 'char-card' + (key === gameState.selectedCharacter ? ' selected' : '');
+    card.innerHTML = `
+      <img src="${char.idle[0]}" alt="${char.name}" />
+      <div class="name">${char.name}</div>
+    `;
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      gameState.selectedCharacter = key;
+    });
+    charOptions.appendChild(card);
+  });
+}
+
+function startGame() {
+  charSelection.style.display = 'none';
+  gameHud.style.display = 'block';
+  gameState.status = 'playing';
+  
+  // Update HUD
+  const charData = characterData[gameState.selectedCharacter];
+  if (playerAvatar) playerAvatar.src = charData.idle[0];
+  if (playerNameEl) playerNameEl.textContent = charData.name;
+  
+  // Load player character
+  player.setCharacter(gameState.selectedCharacter);
+  
+  // Request pointer lock
+  setTimeout(() => {
+    canvas.requestPointerLock();
+  }, 100);
+}
+
+function togglePause() {
+  if (gameState.status === 'playing') {
+    gameState.status = 'paused';
+    pauseMenu.style.display = 'flex';
+    document.exitPointerLock();
+  } else if (gameState.status === 'paused') {
+    gameState.status = 'playing';
+    pauseMenu.style.display = 'none';
+    canvas.requestPointerLock();
+  }
+}
+
+function handleInteraction() {
+  // Check for nearby POI
+  const nearbyPOI = findNearbyPOI();
+  if (nearbyPOI) {
+    showInfoPanel(nearbyPOI);
+  }
+}
+
+function findNearbyPOI() {
+  const interactionDistance = 8;
+  
+  for (const poi of pointsOfInterest) {
+    const dx = player.position.x - poi.position.x;
+    const dz = player.position.z - poi.position.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    
+    if (distance < interactionDistance) {
+      return poi;
+    }
+  }
+  return null;
+}
+
+function showInfoPanel(poi) {
+  infoTitle.textContent = poi.title;
+  infoDescription.textContent = poi.description;
+  infoPanel.style.display = 'block';
+  gameState.status = 'paused';
+  document.exitPointerLock();
+}
+
+function closeInfoPanelFn() {
+  infoPanel.style.display = 'none';
+  gameState.status = 'playing';
+  canvas.requestPointerLock();
+}
+
+function updateInteractionPrompt() {
+  const nearbyPOI = findNearbyPOI();
+  if (nearbyPOI && gameState.status === 'playing') {
+    interactionPrompt.style.display = 'block';
+  } else {
+    interactionPrompt.style.display = 'none';
+  }
+}
+
+function updateMinimap() {
+  if (!minimapCtx) return;
+  
+  const size = 150;
+  const scale = 0.15; // Adjusted for larger world
+  
+  // Clear
+  minimapCtx.fillStyle = 'rgba(0, 30, 0, 0.9)';
+  minimapCtx.fillRect(0, 0, size, size);
+  
+  // Draw landmarks
+  const landmarkColors = {
+    borobudur: '#8B8B7A',
+    prambanan: '#8B4513',
+    lempuyang: '#6B6B5A',
+    batur: '#2E8B8B'
+  };
+  
+  Object.entries(landmarks).forEach(([key, landmark]) => {
+    const x = size/2 + landmark.position.x * scale;
+    const z = size/2 + landmark.position.z * scale;
+    if (x > 5 && x < size - 5 && z > 5 && z < size - 5) {
+      minimapCtx.fillStyle = landmarkColors[key] || '#888888';
+      minimapCtx.beginPath();
+      minimapCtx.arc(x, z, key === 'batur' ? 8 : 6, 0, Math.PI * 2);
+      minimapCtx.fill();
+      
+      // Label
+      minimapCtx.fillStyle = '#ffffff';
+      minimapCtx.font = '7px Arial';
+      minimapCtx.textAlign = 'center';
+      minimapCtx.fillText(landmark.name.split(' ')[0], x, z - 8);
+    }
+  });
+  
+  // Draw POI markers
+  minimapCtx.fillStyle = '#ffcc00';
+  pointsOfInterest.forEach(poi => {
+    const x = size/2 + poi.position.x * scale;
+    const z = size/2 + poi.position.z * scale;
+    if (x > 0 && x < size && z > 0 && z < size) {
+      minimapCtx.beginPath();
+      minimapCtx.arc(x, z, 2, 0, Math.PI * 2);
+      minimapCtx.fill();
+    }
+  });
+  
+  // Draw player position
+  const playerX = size/2 + player.position.x * scale;
+  const playerZ = size/2 + player.position.z * scale;
+  
+  // Player direction indicator
+  minimapCtx.save();
+  minimapCtx.translate(playerX, playerZ);
+  minimapCtx.rotate(player.rotation);
+  minimapCtx.fillStyle = '#00ff00';
+  minimapCtx.beginPath();
+  minimapCtx.moveTo(0, -6);
+  minimapCtx.lineTo(-4, 4);
+  minimapCtx.lineTo(4, 4);
+  minimapCtx.closePath();
+  minimapCtx.fill();
+  minimapCtx.restore();
+}
+
+// ===== EVENT LISTENERS =====
+if (startExploreBtn) {
+  startExploreBtn.addEventListener('click', startGame);
+}
+
+if (menuBtn) {
+  menuBtn.addEventListener('click', togglePause);
+}
+
+if (resumeBtn) {
+  resumeBtn.addEventListener('click', togglePause);
+}
+
+if (changeCharBtn) {
+  changeCharBtn.addEventListener('click', () => {
+    pauseMenu.style.display = 'none';
+    gameHud.style.display = 'none';
+    showCharacterSelection();
+  });
+}
+
+if (exitBtn) {
+  exitBtn.addEventListener('click', () => {
+    location.reload();
+  });
+}
+
+if (closeInfoBtn) {
+  closeInfoBtn.addEventListener('click', closeInfoPanelFn);
+}
+
+// ===== INITIALIZE =====
+const player = new Player();
+let cameraController = null;
+
+// Create world
+createWorld();
+
+// Debug: visualize collision boxes (set to true to see them)
+const DEBUG_COLLISION = false;
+if (DEBUG_COLLISION) {
+  collisionBoxes.forEach(box => {
+    const width = box.maxX - box.minX;
+    const depth = box.maxZ - box.minZ;
+    const centerX = (box.minX + box.maxX) / 2;
+    const centerZ = (box.minZ + box.maxZ) / 2;
+    
+    const debugGeom = new THREE.BoxGeometry(width, 5, depth);
+    const debugMat = new THREE.MeshBasicMaterial({ 
+      color: 0xff0000, 
+      transparent: true, 
+      opacity: 0.3,
+      wireframe: true
+    });
+    const debugBox = new THREE.Mesh(debugGeom, debugMat);
+    debugBox.position.set(centerX, 2.5, centerZ);
+    scene.add(debugBox);
+  });
+  console.log('Collision boxes:', collisionBoxes);
+}
+
+// Initialize camera controller
+cameraController = new CameraController(camera, player.position);
+
+// Loading complete
+setTimeout(() => {
+  if (loadingText) loadingText.textContent = 'Tekan ENTER untuk mulai';
+}, 1500);
+
+// ===== ANIMATION LOOP =====
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  
+  const delta = clock.getDelta();
+  
+  if (gameState.status === 'playing') {
+    // Update player
+    player.update(delta, keys, cameraController.getHorizontalAngle());
+    
+    // Update camera
+    if (cameraController) {
+      cameraController.handleMouseMove(mouseMovement.x, mouseMovement.y);
+      cameraController.update(player.position);
+    }
+    
+    // Reset mouse movement
+    mouseMovement.x = 0;
+    mouseMovement.y = 0;
+    
+    // Update UI
+    updateInteractionPrompt();
+    updateMinimap();
+    
+    // Animate POI orbs
+    scene.traverse(obj => {
+      if (obj.userData && obj.userData.isOrb) {
+        obj.position.y = 2.5 + Math.sin(clock.elapsedTime * 2) * 0.3;
+      }
+      // Animate smoke from volcano
+      if (obj.userData && obj.userData.isSmoke) {
+        obj.position.y = obj.userData.baseY + Math.sin(clock.elapsedTime * 0.5 + obj.position.x) * 2;
+        obj.material.opacity = 0.3 + Math.sin(clock.elapsedTime + obj.position.z) * 0.15;
+      }
+      // Animate boats on lake
+      if (obj.userData && obj.userData.isBoat) {
+        const newAngle = obj.userData.angle + clock.elapsedTime * 0.02;
+        obj.position.x = Math.cos(newAngle) * obj.userData.radius;
+        obj.position.z = Math.sin(newAngle) * obj.userData.radius;
+        obj.position.y = 0.3 + Math.sin(clock.elapsedTime * 2) * 0.1;
+        obj.rotation.y = newAngle + Math.PI / 2;
       }
     });
-    el.dataset.wired = '1';
-  }
-}
-
-function updateHUDCharacters() {
-  const p1Thumb = document.getElementById('p1-thumb');
-  const p2Thumb = document.getElementById('p2-thumb');
-  const name1 = selectedCharacters[0] || 'bagong';
-  const name2 = selectedCharacters[1] || 'bagong';
-  if (p1Thumb) {
-    // prefer icon if available, fall back to thumbnail or first idle frame
-    if (iconsAvailable[name1]) p1Thumb.src = iconPathFor(name1);
-    else if (thumbnailsCache[name1]) p1Thumb.src = thumbnailsCache[name1].src;
-    else if (framesIndex[name1] && framesIndex[name1].idle && framesIndex[name1].idle[0]) p1Thumb.src = framesIndex[name1].idle[0];
-  }
-  if (p2Thumb) {
-    if (iconsAvailable[name2]) p2Thumb.src = iconPathFor(name2);
-    else if (thumbnailsCache[name2]) p2Thumb.src = thumbnailsCache[name2].src;
-    else if (framesIndex[name2] && framesIndex[name2].idle && framesIndex[name2].idle[0]) p2Thumb.src = framesIndex[name2].idle[0];
-  }
-}
-
-function applyCharacterChangeDuringPause() {
-  // Replace fighter sprites but preserve game state (hp, timer, round)
-  if (!fighter1 && !fighter2) return;
-
-  const prev1 = fighter1 ? { x: fighter1.x, y: fighter1.y, facingRight: fighter1.facingRight } : { x: -3, y: -3, facingRight: true };
-  const prev2 = fighter2 ? { x: fighter2.x, y: fighter2.y, facingRight: fighter2.facingRight } : { x: 3, y: -3, facingRight: false };
-
-  // Remove old meshes
-  try { if (fighter1 && fighter1.mesh) scene.remove(fighter1.mesh); } catch (e) {}
-  try { if (fighter2 && fighter2.mesh) scene.remove(fighter2.mesh); } catch (e) {}
-
-  // Create new fighter instances using selectedCharacters
-  const p1Frames = getFramesFor(selectedCharacters[0]);
-  const p2Frames = getFramesFor(selectedCharacters[1]);
-  fighter1 = new Fighter2D(p1Frames.idle, p1Frames.punch, p1Frames.walk, prev1.x, prev1.facingRight, 0);
-  fighter2 = new Fighter2D(p2Frames.idle, p2Frames.punch, p2Frames.walk, prev2.x, prev2.facingRight, 1);
-  fighter1.x = prev1.x; fighter1.y = prev1.y; fighter1.facingRight = prev1.facingRight;
-  fighter2.x = prev2.x; fighter2.y = prev2.y; fighter2.facingRight = prev2.facingRight;
-  fighters = [fighter1, fighter2];
-  updateHUDCharacters();
-}
-
-function openCharacterSelectionUI() {
-  createCharacterSelectionUI();
-  const el = document.getElementById('char-selection');
-  if (el) {
-    el.classList.remove('overlay-hidden');
-    el.style.display = 'flex';
-  }
-}
-
-function closeCharacterSelectionUI() {
-  // Remove any duplicate char-selection nodes to be robust
-  const els = Array.from(document.querySelectorAll('#char-selection'));
-  els.forEach((node) => {
-    try { node.remove(); } catch (e) { try { node.parentNode && node.parentNode.removeChild(node); } catch(e){} }
-  });
-}
-
-// ---------- Pause menu ----------
-function showPauseMenu() {
-  let el = document.getElementById('pause-menu');
-  if (el) {
-    el.style.display = 'flex';
-    if (!el.dataset.wired) {
-      el.querySelector('#pause-continue')?.addEventListener('click', () => { hidePauseMenu(); });
-      el.querySelector('#pause-select')?.addEventListener('click', () => { hidePauseMenu(); openCharacterSelectionUI(); });
-      el.querySelector('#pause-exit')?.addEventListener('click', () => { hidePauseMenu(); returnToMenu(); try { window.location.href = './index.html'; } catch(e){} });
-      el.dataset.wired = '1';
-    }
-    return;
-  }
-  // fallback: create dynamically if not present
-  const created = document.createElement('div');
-  created.id = 'pause-menu';
-  created.className = 'overlay-center';
-  created.innerHTML = `
-    <div class="overlay-card">
-      <h2>PAUSED</h2>
-      <button id="pause-continue">Continue</button>
-      <button id="pause-select">Select Character</button>
-      <button id="pause-exit">Exit to Main Menu</button>
-    </div>
-  `;
-  document.body.appendChild(created);
-  created.querySelector('#pause-continue')?.addEventListener('click', () => { hidePauseMenu(); });
-  created.querySelector('#pause-select')?.addEventListener('click', () => { hidePauseMenu(); openCharacterSelectionUI(); });
-  created.querySelector('#pause-exit')?.addEventListener('click', () => { hidePauseMenu(); returnToMenu(); try { window.location.href = './index.html'; } catch(e){} });
-  try { updateMusicForState(); } catch (e) {}
-}
-
-function hidePauseMenu() {
-  const el = document.getElementById('pause-menu');
-  if (el) el.style.display = 'none';
-  try { updateMusicForState(); } catch (e) {}
-}
-
-// ---------- Home menu ----------
-function showHomeMenu() {
-  // Pause game jika sedang fight
-  if (gameState.status === 'fight') {
-    gameState.prevStatus = gameState.status;
-    gameState.status = 'paused';
   }
   
-  let el = document.getElementById('home-menu');
-  if (el) {
-    el.style.display = 'flex';
-    if (!el.dataset.wired) {
-      el.querySelector('#home-rematch')?.addEventListener('click', () => { hideHomeMenu(); rematchGame(); });
-      el.querySelector('#home-quit')?.addEventListener('click', () => { hideHomeMenu(); returnToMenu(); try { window.location.href = './index.html'; } catch(e){} });
-      el.querySelector('#home-cancel')?.addEventListener('click', () => { hideHomeMenu(); });
-      el.dataset.wired = '1';
-    }
-    return;
-  }
-}
-
-function hideHomeMenu() {
-  const el = document.getElementById('home-menu');
-  if (el) el.style.display = 'none';
-  // Resume game
-  if (gameState.status === 'paused' && gameState.prevStatus) {
-    gameState.status = gameState.prevStatus;
-  }
-}
-
-function rematchGame() {
-  // Reset game state untuk rematch
-  gameState.round = 1;
-  gameState.roundWins = [0, 0];
-  gameState.hp = [100, 100];
-  gameState.timer = 99;
-  
-  // Update score display
-  if (gameState.scoreEls[0]) gameState.scoreEls[0].textContent = '☆☆';
-  if (gameState.scoreEls[1]) gameState.scoreEls[1].textContent = '☆☆';
-  
-  // Start new match
-  startMatch();
-}
-
-// Setup home button
-const homeBtn = document.getElementById('ingame-home-btn');
-if (homeBtn) {
-  homeBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (gameState.status === 'fight' || gameState.status === 'paused') {
-      showHomeMenu();
-    }
-  });
-}
-
-// ---------- End-match menu ----------
-function showEndMenu(winnerText) {
-  let el = document.getElementById('end-menu');
-  if (el) {
-    const h = el.querySelector('#end-winner');
-    if (h) h.textContent = winnerText;
-    el.style.display = 'flex';
-    if (!el.dataset.wired) {
-      el.querySelector('#end-restart')?.addEventListener('click', () => { el.style.display='none'; startMatch(); });
-      el.querySelector('#end-restart-change')?.addEventListener('click', () => { el.style.display='none'; openCharacterSelectionUI(); });
-      el.querySelector('#end-exit')?.addEventListener('click', () => { el.style.display='none'; returnToMenu(); try { window.location.href = './index.html'; } catch(e){} });
-      el.dataset.wired = '1';
-    }
-    return;
-  }
-  // fallback: create dynamically
-  const created = document.createElement('div');
-  created.id = 'end-menu';
-  created.className = 'overlay-center';
-  created.innerHTML = `
-    <div class="overlay-card">
-      <h2>${winnerText}</h2>
-      <div style="display:flex;gap:8px;">
-        <button id="end-restart">Restart</button>
-        <button id="end-restart-change">Restart (Change Characters)</button>
-        <button id="end-exit">Exit to Menu</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(created);
-  created.querySelector('#end-restart')?.addEventListener('click', () => { created.remove(); startMatch(); });
-  created.querySelector('#end-restart-change')?.addEventListener('click', () => { created.remove(); openCharacterSelectionUI(); });
-  created.querySelector('#end-exit')?.addEventListener('click', () => { created.remove(); returnToMenu(); try { window.location.href = './index.html'; } catch(e){} });
-}
-
-function hideEndMenu() { const el = document.getElementById('end-menu'); if (el) el.style.display = 'none'; }
-
-let loadingReady = false;
-setTimeout(() => {
-  loadingReady = true;
-  const txtEl = document.getElementById('loading-text');
-  if (txtEl) txtEl.textContent = '';
-}, 1000);
-
-// Hilangkan start dengan klik: untuk mulai wajib ENTER
-window.addEventListener('click', () => { /* no-op */ });
-
-// Make loading-screen act as a decorative start background (click-through)
-if (loadingEl) {
-  // ensure background visible behind menu
-  loadingEl.classList.remove('hidden');
-  loadingEl.classList.add('start-bg');
-}
-
-// Put the page in minimal start-screen mode by default: show only background and hint
-try { document.body.classList.add('start-minimal'); } catch (e) {}
-
-// Click tooltip helper (transient)
-function showClickTooltip(text = 'Memuat...', ms = 1100) {
-  let tip = document.getElementById('click-tooltip');
-  if (!tip) {
-    tip = document.createElement('div');
-    tip.id = 'click-tooltip';
-    tip.className = 'click-tooltip';
-    document.body.appendChild(tip);
-  }
-  tip.textContent = text;
-  tip.classList.add('visible');
-  // reset hide timer
-  if (tip._hideTimer) clearTimeout(tip._hideTimer);
-  tip._hideTimer = setTimeout(() => {
-    tip.classList.remove('visible');
-    tip._hideTimer = null;
-  }, ms);
-}
-
-// Sembunyikan tombol Mulai Pertarungan jika ada
-(function(){
-  const startBtn = document.getElementById('start-btn');
-  if (startBtn) { try { startBtn.style.display = 'none'; } catch(e){} }
-})();
-
-// Sound toggle (Wayang-themed mute/unmute)
-const soundToggle = document.getElementById('sound-toggle');
-let audioMuted = false;
-if (soundToggle) {
-  soundToggle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    audioMuted = !audioMuted;
-    try {
-      if (audioMuted) {
-        stopMusic(menuMusic); stopMusic(fightMusic);
-        soundToggle.textContent = '🔇';
-      } else {
-        // resume appropriate music for current state
-        updateMusicForState();
-        soundToggle.textContent = '🔊';
-      }
-    } catch (e) {}
-  });
-}
-
-const sparks = [];
-function spawnSpark(x, y) {
-  const geo = new THREE.CircleGeometry(0.15, 8);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(x, y, 1);
-  scene.add(mesh);
-  sparks.push({ mesh, life: 0.25 });
-}
-
-function updateSparks(delta) {
-  for (let i = sparks.length - 1; i >= 0; i--) {
-    const s = sparks[i];
-    s.life -= delta;
-    s.mesh.scale.multiplyScalar(1 + delta * 5);
-    s.mesh.material.opacity = Math.max(0, s.life / 0.25);
-    if (s.life <= 0) {
-      scene.remove(s.mesh);
-      s.mesh.geometry.dispose();
-      s.mesh.material.dispose();
-      sparks.splice(i, 1);
-    }
-  }
-}
-
-function startMatch() {
-  gameState.roundWins = [0, 0];
-  gameState.round = 1;
-  // Ensure any overlays from selection flow are removed
-  closeCharacterSelectionUI();
-  hideMapSelection();
-  if (loadingEl) { try { loadingEl.classList.add('hidden'); loadingEl.style.display = 'none'; } catch(e){} }
-  if (gameState.menuEl) gameState.menuEl.style.display = 'none';
-  if (gameState.hudEl) gameState.hudEl.style.display = 'block';
-  if (backMenuBtn) backMenuBtn.style.display = 'none';
-  updateScoreDisplay();
-  startRound();
-}
-
-function startRound() {
-  // Cleanup existing fighters if they exist
-  if (fighter1) {
-    try { scene.remove(fighter1.mesh); } catch (e) {}
-  }
-  if (fighter2) {
-    try { scene.remove(fighter2.mesh); } catch (e) {}
-  }
-
-  // Make sure selection UI and other overlays are fully removed before fight starts
-  closeCharacterSelectionUI();
-  hideMapSelection();
-  if (loadingEl) { try { loadingEl.classList.add('hidden'); loadingEl.style.display = 'none'; } catch(e){} }
-
-  // Create new fighters based on selected characters
-  const p1Frames = getFramesFor(selectedCharacters[0]);
-  const p2Frames = getFramesFor(selectedCharacters[1]);
-  fighter1 = new Fighter2D(p1Frames.idle, p1Frames.punch, p1Frames.walk, -3, true, 0);
-  fighter2 = new Fighter2D(p2Frames.idle, p2Frames.punch, p2Frames.walk, 3, false, 1);
-  fighters = [fighter1, fighter2];
-
-  // If icon.png exists for a character, use it as a simplified in-fight portrait sprite
-  try {
-    if (iconsAvailable[selectedCharacters[0]]) {
-      const tex = new THREE.TextureLoader().load(iconPathFor(selectedCharacters[0]));
-      fighter1.mesh.material.map = tex;
-      fighter1.mesh.material.needsUpdate = true;
-      // adjust sprite size for icon (make smaller and square-ish)
-      fighter1.mesh.scale.set(1.2, 1.2, 1);
-    }
-  } catch (e) {}
-  try {
-    if (iconsAvailable[selectedCharacters[1]]) {
-      const tex = new THREE.TextureLoader().load(iconPathFor(selectedCharacters[1]));
-      fighter2.mesh.material.map = tex;
-      fighter2.mesh.material.needsUpdate = true;
-      fighter2.mesh.scale.set(1.2, 1.2, 1);
-    }
-  } catch (e) {}
-
-  // Update HUD portraits to reflect selected characters
-  updateHUDCharacters();
-
-  gameState.status = 'fight';
-  // switch to fight music
-  try { updateMusicForState(); } catch (e) {}
-  gameState.hp = [100, 100];
-  gameState.timer = 99;
-  fighter1.x = -3;
-  fighter1.facingRight = true;
-  fighter2.x = 3;
-  fighter2.facingRight = false;
-  updateHPBars();
-  showMessage('RONDE ' + gameState.round);
-  setTimeout(() => hideMessage(), 1300);
-}
-
-function hideMessage() {
-  if (gameState.messageEl) gameState.messageEl.style.display = 'none';
-}
-
-function showMessage(text) {
-  if (gameState.messageEl) {
-    gameState.messageEl.textContent = text;
-    gameState.messageEl.style.display = 'block';
-  }
-}
-
-function updateHPBars() {
-  if (gameState.hpEls[0]) gameState.hpEls[0].style.width = ((gameState.hp[0] / gameState.maxHp) * 100) + '%';
-  if (gameState.hpEls[1]) gameState.hpEls[1].style.width = ((gameState.hp[1] / gameState.maxHp) * 100) + '%';
-}
-
-function updateScoreDisplay() {
-  const stars = (wins) => '\u2605'.repeat(wins) + '\u2606'.repeat(2 - wins);
-  if (gameState.scoreEls[0]) gameState.scoreEls[0].textContent = stars(gameState.roundWins[0]);
-  if (gameState.scoreEls[1]) gameState.scoreEls[1].textContent = stars(gameState.roundWins[1]);
-}
-
-function applyDamage(targetIndex, blocking) {
-  if (blocking) {
-    fighters[targetIndex].blockEffectTimer = 0.25;
-    sfx.block();
-    return;
-  }
-  const dmg = 12;
-  gameState.hp[targetIndex] = Math.max(0, gameState.hp[targetIndex] - dmg);
-  fighters[targetIndex].takeHit(); // trigger efek flash putih
-  updateHPBars();
-  if (gameState.hp[targetIndex] === 0) {
-    resolveWinner(targetIndex === 0 ? 2 : 1);
-  }
-}
-
-function resolveWinner(forcedWinner) {
-  if (gameState.status !== 'fight') return;
-  gameState.status = 'ended';
-  let winnerText = '';
-  let roundWinnerIndex = -1;
-  
-  if (forcedWinner) {
-    roundWinnerIndex = forcedWinner - 1;
-    winnerText = 'P' + forcedWinner + ' MENANG RONDE ' + gameState.round + '!';
-  } else {
-    const diff = gameState.hp[0] - gameState.hp[1];
-    if (diff === 0) {
-      winnerText = 'SERI RONDE ' + gameState.round + '!';
-    } else if (diff > 0) {
-      roundWinnerIndex = 0;
-      winnerText = 'P1 MENANG RONDE ' + gameState.round + '!';
-    } else {
-      roundWinnerIndex = 1;
-      winnerText = 'P2 MENANG RONDE ' + gameState.round + '!';
-    }
-  }
-  
-  if (roundWinnerIndex >= 0) {
-    gameState.roundWins[roundWinnerIndex] += 1;
-    updateScoreDisplay();
-  }
-  
-  const p1Wins = gameState.roundWins[0];
-  const p2Wins = gameState.roundWins[1];
-  const matchEnded = p1Wins === 2 || p2Wins === 2;
-  
-  if (matchEnded) {
-    const finalWinner = p1Wins === 2 ? 1 : 2;
-    showMessage(winnerText + ' P' + finalWinner + ' MENANG MATCH!');
-    gameState.status = 'match-ended';
-    sfx.win();
-    if (backMenuBtn) backMenuBtn.style.display = 'block';
-    // Show end menu overlay
-    showEndMenu(winnerText + ' P' + finalWinner + ' MENANG MATCH!');
-  } else {
-    showMessage(winnerText + ' Tekan ENTER untuk lanjut ke Ronde ' + (gameState.round + 1) + '.');
-  }
-}
-
-function returnToMenu() {
-  gameState.status = 'menu';
-  if (gameState.hudEl) gameState.hudEl.style.display = 'none';
-  hideMapSelection();
-  if (gameState.menuEl) gameState.menuEl.style.display = 'block';
-  try { document.body.classList.remove('start-minimal'); } catch (e) {}
-  if (backMenuBtn) backMenuBtn.style.display = 'none';
-  hidePauseMenu();
-  hideEndMenu();
-  closeCharacterSelectionUI();
-  hideMessage();
-  try { updateMusicForState(); } catch (e) {}
-}
-
-if (backMenuBtn) {
-  backMenuBtn.addEventListener('click', (e) => { e.stopPropagation(); returnToMenu(); });
-}
-
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Enter') {
-    // ENTER dari loading: buka pemilihan karakter
-    if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
-      loadingEl.classList.add('hidden');
-      setTimeout(() => { loadingEl.style.display = 'none'; }, 450);
-      try { document.body.classList.remove('start-minimal'); } catch (e) {}
-      if (gameState.menuEl) gameState.menuEl.style.display = 'none';
-      openCharacterSelectionUI();
-      return;
-    }
-    // ENTER dari menu: buka pemilihan karakter
-    if (gameState.status === 'menu') {
-      try { document.body.classList.remove('start-minimal'); } catch (e) {}
-      if (gameState.menuEl) gameState.menuEl.style.display = 'none';
-      openCharacterSelectionUI();
-      return;
-    }
-    // Alur setelah ronde/match
-    if (gameState.status === 'match-ended') {
-      startMatch();
-    } else if (gameState.status === 'ended') {
-      gameState.round += 1;
-      startRound();
-    }
-  }
-});
-
-// Pause toggle with Escape
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Escape') {
-    if (gameState.status === 'fight') {
-      gameState.prevStatus = gameState.status;
-      gameState.status = 'paused';
-      showPauseMenu();
-    } else if (gameState.status === 'paused') {
-      gameState.status = gameState.prevStatus || 'fight';
-      hidePauseMenu();
-    }
-  }
-});
-
-function update(delta) {
-  if (gameState.status !== 'fight') return;
-  
-  gameState.timer = Math.max(0, gameState.timer - delta);
-  if (gameState.timerEl) {
-    gameState.timerEl.textContent = Math.floor(gameState.timer).toString().padStart(2, '0');
-  }
-  
-  if (gameState.timer === 0) {
-    resolveWinner();
-    return;
-  }
-  
-  const speed = 5;
-  const bound = 7;
-  
-  // Fighter 1 controls
-  if (keys['KeyA']) {
-    fighter1.x -= speed * delta;
-    fighter1.isWalking = true;
-  }
-  if (keys['KeyD']) {
-    fighter1.x += speed * delta;
-    fighter1.isWalking = true;
-  }
-  if (keys['KeyW']) fighter1.jump();
-  fighter1.blocking = !!keys['KeyS'];
-  if (keys['Space']) fighter1.attack();
-  
-  // Fighter 2 controls
-  if (keys['ArrowLeft']) {
-    fighter2.x -= speed * delta;
-    fighter2.isWalking = true;
-  }
-  if (keys['ArrowRight']) {
-    fighter2.x += speed * delta;
-    fighter2.isWalking = true;
-  }
-  if (keys['ArrowUp']) fighter2.jump();
-  fighter2.blocking = !!(keys['ControlLeft'] || keys['ArrowDown']);
-  if (keys['Slash']) fighter2.attack();
-  
-  fighter1.x = THREE.MathUtils.clamp(fighter1.x, -bound, bound);
-  fighter2.x = THREE.MathUtils.clamp(fighter2.x, -bound, bound);
-  
-  fighter1.facingRight = fighter1.x < fighter2.x;
-  fighter2.facingRight = fighter2.x < fighter1.x;
-  
-  fighter1.update(delta);
-  fighter2.update(delta);
-  
-  if (fighter1.attackTimer > 0.15 && fighter1.attackTimer < 0.25) {
-    const attackBox = fighter1.getAttackBox();
-    const hitbox = fighter2.getHitbox();
-    if (boxCollision(attackBox, hitbox)) {
-      spawnSpark(fighter2.x, fighter2.y + 1);
-      applyDamage(1, fighter2.blocking);
-      fighter1.attackTimer = 0.1;
-    }
-  }
-  
-  if (fighter2.attackTimer > 0.15 && fighter2.attackTimer < 0.25) {
-    const attackBox = fighter2.getAttackBox();
-    const hitbox = fighter1.getHitbox();
-    if (boxCollision(attackBox, hitbox)) {
-      spawnSpark(fighter1.x, fighter1.y + 1);
-      applyDamage(0, fighter1.blocking);
-      fighter2.attackTimer = 0.1;
-    }
-  }
-}
-
-// ==========================================
-// 5. ANIMASI LIGHTING (Masukan ke tick)
-// ==========================================
-
-function updateLighting(delta) {
-  // Hanya nyalakan lampu jika sedang fight atau pause
-  if (gameState.status === 'fight' || gameState.status === 'paused') {
-    // Lerp (Interpolasi linear) agar lampu nyala pelan-pelan
-    dirLight.intensity += (targetIntensity - dirLight.intensity) * delta * 2.0;
-    ambientLight.intensity += (targetAmbient - ambientLight.intensity) * delta * 2.0;
-  } else {
-    // Jika di menu, redupkan
-    dirLight.intensity += (0 - dirLight.intensity) * delta * 5.0;
-    ambientLight.intensity += (0.5 - ambientLight.intensity) * delta * 2.0; // Biar menu tetep kelihatan
-  }
-}
-
-const clock = new THREE.Clock();
-function tick() {
-  const delta = clock.getDelta();
-  update(delta);
-  updateSparks(delta);
-  
-  // [NEW] Update lighting animation
-  updateLighting(delta);
-
   renderer.render(scene, camera);
-  requestAnimationFrame(tick);
 }
-tick();
 
+// ===== WINDOW RESIZE =====
 window.addEventListener('resize', () => {
-  const newAspect = window.innerWidth / window.innerHeight;
-  camera.left = -viewHeight * newAspect / 2;
-  camera.right = viewHeight * newAspect / 2;
-  camera.top = viewHeight / 2;
-  camera.bottom = -viewHeight / 2;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// Start animation
+animate();
