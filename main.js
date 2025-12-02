@@ -1013,31 +1013,8 @@ setTimeout(() => {
   if (txtEl) txtEl.textContent = '';
 }, 1000);
 
-// Treat click on menu as Start when in menu state and Start button is enabled.
-window.addEventListener('click', (e) => {
-  try {
-    if (gameState.status === 'menu') {
-      const startBtnEl = document.getElementById('start-btn');
-      if (startBtnEl && !startBtnEl.disabled) {
-        // If user clicked a real control, don't double-fire
-        const target = e.target;
-        if (target && (target === startBtnEl || startBtnEl.contains(target))) {
-          // allow normal click
-          return;
-        }
-        // treat global click as start
-        startBtnEl.click();
-      } else if (startBtnEl && startBtnEl.disabled) {
-        // If fallback unlocked, allow global click to start anyway
-        if (typeof startUnlocked !== 'undefined' && startUnlocked) {
-          try { startBtnEl.click(); return; } catch (e) {}
-        }
-        // Show a small tooltip that loading is in progress
-        showClickTooltip('Memuat...');
-      }
-    }
-  } catch (err) { /* ignore */ }
-});
+// Hilangkan start dengan klik: untuk mulai wajib ENTER
+window.addEventListener('click', () => { /* no-op */ });
 
 // Make loading-screen act as a decorative start background (click-through)
 if (loadingEl) {
@@ -1068,19 +1045,11 @@ function showClickTooltip(text = 'Memuat...', ms = 1100) {
   }, ms);
 }
 
-const startBtn = document.getElementById('start-btn');
-if (startBtn) {
-  startBtn.disabled = true; // will be enabled after thumbnails preload
-  startBtn.textContent = 'MULAI PERTARUNGAN (Memuat...)';
-  startBtn.addEventListener('click', () => {
-    // start flow: open character selection first
-    // remove minimal start-screen (reveal menu/flow) and try to unlock/play menu music
-    try { document.body.classList.remove('start-minimal'); } catch (e) {}
-    try { playMusic('menu'); } catch (e) {}
-    if (gameState.menuEl) gameState.menuEl.style.display = 'none';
-    openCharacterSelectionUI();
-  });
-}
+// Sembunyikan tombol Mulai Pertarungan jika ada
+(function(){
+  const startBtn = document.getElementById('start-btn');
+  if (startBtn) { try { startBtn.style.display = 'none'; } catch(e){} }
+})();
 
 // Sound toggle (Wayang-themed mute/unmute)
 const soundToggle = document.getElementById('sound-toggle');
@@ -1299,14 +1268,22 @@ if (backMenuBtn) {
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter') {
-    // Saat loading screen aktif, ENTER membuka pemilihan map
+    // ENTER dari loading: buka pemilihan karakter
     if (loadingReady && loadingEl && loadingEl.style.display !== 'none') {
       loadingEl.classList.add('hidden');
       setTimeout(() => { loadingEl.style.display = 'none'; }, 450);
-      try { showMapSelection(); } catch (e) { console.warn('showMapSelection error', e); }
+      try { document.body.classList.remove('start-minimal'); } catch (e) {}
+      if (gameState.menuEl) gameState.menuEl.style.display = 'none';
+      openCharacterSelectionUI();
       return;
     }
-
+    // ENTER dari menu: buka pemilihan karakter
+    if (gameState.status === 'menu') {
+      try { document.body.classList.remove('start-minimal'); } catch (e) {}
+      if (gameState.menuEl) gameState.menuEl.style.display = 'none';
+      openCharacterSelectionUI();
+      return;
+    }
     // Alur setelah ronde/match
     if (gameState.status === 'match-ended') {
       startMatch();
