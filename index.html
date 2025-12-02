@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wayang Arena</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <script>console.log('[index] inline script - page loaded');</script>
+  <canvas id="scene"></canvas>
+  <div id="ui-root">
+    <div id="loading-screen">
+      <div id="loading-text"></div>
+      <div style="margin:18px 0 0; text-align:center;">
+        <button id="start-btn" disabled aria-label="Start (loading)"></button>
+        <button id="home-btn" style="display:none;">🏠 MENU</button>
+      </div>
+    </div>
+    <!-- map selection is created dynamically at runtime to avoid DOM/z-index conflicts -->
+    <div id="hud">
+      <div class="hud-inner">
+        <div class="hp-box">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <img id="p1-thumb" class="char-hud-thumb" src="./textures/bagong/idle/idle 1.png" alt="P1" />
+            <div class="hp-label">P1 • A/D bergerak • S tangkis • SPACE pukul</div>
+          </div>
+          <div class="hp-frame"><div id="hp1" class="hp-bar"></div></div>
+        </div>
+        <div id="round-panel">
+          <div id="timer-display">99</div>
+          <div id="round-display">BEST OF 3</div>
+          <div id="score-display">
+            <span id="score1" class="score-stars">☆☆</span>
+            <span>VS</span>
+            <span id="score2" class="score-stars">☆☆</span>
+          </div>
+        </div>
+        <div class="hp-box" style="text-align:right;">
+          <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;margin-bottom:6px;">
+            <div class="hp-label">P2 • ←/→ bergerak • Ctrl tangkis • ArrowDown pukul</div>
+            <img id="p2-thumb" class="char-hud-thumb" src="./textures/bagong/idle/idle 1.png" alt="P2" />
+          </div>
+          <div class="hp-frame"><div id="hp2" class="hp-bar"></div></div>
+        </div>
+      </div>
+      <!-- Home Button -->
+      <button id="ingame-home-btn" class="home-btn" title="Menu">🏠</button>
+    </div>
+
+    <!-- Removed Wayang Arena main menu; using the old loading.png start screen instead -->
+
+    <div id="message"></div>
+    <div id="pre-fight"><img src="./fight.png" alt="FIGHT" /></div>
+    <button id="back-menu-btn">Kembali Pilih Latar</button>
+
+    <!-- character selection is created dynamically at runtime -->
+
+    <!-- Static Pause Menu -->
+    <div id="pause-menu" class="overlay-center" style="display:none;">
+      <div class="overlay-card">
+        <h2>PAUSED</h2>
+        <button id="pause-continue">Continue</button>
+        <button id="pause-select">Select Character</button>
+        <button id="pause-exit">Exit to Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Home Menu Popup -->
+    <div id="home-menu" class="overlay-center" style="display:none;">
+      <div class="overlay-card">
+        <h2>MENU</h2>
+        <button id="home-rematch" class="btn-primary">🔄 Rematch</button>
+        <button id="home-quit" class="btn-secondary">🚪 Quit to Main Menu</button>
+        <button id="home-cancel" class="btn-cancel">✖ Cancel</button>
+      </div>
+    </div>
+
+    <!-- Static End Menu -->
+    <div id="end-menu" class="overlay-center" style="display:none;">
+      <div class="overlay-card">
+        <h2 id="end-winner">P1 MENANG</h2>
+        <div style="display:flex;gap:8px;justify-content:center;">
+          <button id="end-restart">Mulai Ulang</button>
+          <button id="end-restart-change">Ganti Karakter</button>
+          <button id="end-exit">Keluar ke Menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
