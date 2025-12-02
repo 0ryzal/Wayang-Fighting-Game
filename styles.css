@@ -306,3 +306,102 @@ body.start-minimal #loading-text { display: none !important; }
 }
 #audio-permission .card p { margin: 0 0 12px; color: rgba(255,255,255,0.9); }
 #audio-permission .card button { pointer-events: auto; }
+
+/* Home button in-game */
+.home-btn {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 40;
+  background: rgba(20, 20, 30, 0.85);
+  border: 2px solid rgba(255, 223, 90, 0.4);
+  color: var(--wayang-gold);
+  font-size: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: all 0.25s ease;
+  pointer-events: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+}
+
+.home-btn:hover {
+  background: var(--wayang-gold);
+  color: #111;
+  transform: scale(1.1) rotate(-10deg);
+  border-color: var(--wayang-gold);
+  box-shadow: 0 6px 20px rgba(255, 223, 90, 0.5);
+}
+
+/* Button styles for home menu */
+.btn-primary {
+  background: linear-gradient(120deg, #4CAF50, #2E7D32);
+  color: white;
+  margin-top: 12px;
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.btn-secondary {
+  background: linear-gradient(120deg, #f44336, #c62828);
+  color: white;
+  margin-top: 12px;
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+.btn-secondary:hover {
+  filter: brightness(1.1);
+}
+
+.btn-cancel {
+  background: linear-gradient(120deg, #757575, #424242);
+  color: white;
+  margin-top: 12px;
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.btn-cancel:hover {
+  filter: brightness(1.1);
+}
+
+/* Tambahkan di bagian bawah file styles.css */
+
+#home-btn {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%); /* Biar di tengah atas */
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffdf5a; /* Warna emas */
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: all 0.2s ease;
+  pointer-events: auto;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+#home-btn:hover {
+  background: #ffdf5a;
+  color: #000;
+  transform: translateX(-50%) scale(1.05);
+}

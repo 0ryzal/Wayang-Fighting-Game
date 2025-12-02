@@ -1,9 +1,147 @@
 import * as THREE from 'three';
 
+// ==========================================
+// 1. FACTORY ORNAMEN 3D (Procedural Meshes)
+// ==========================================
+
+// Material standar untuk batu candi (Abu-abu gelap & kasar)
+const stoneMat = new THREE.MeshStandardMaterial({ 
+  color: 0x666666, 
+  roughness: 0.9, 
+  metalness: 0.1,
+  flatShading: true 
+});
+
+// Material untuk atap jerami/kayu (untuk map Bali/Danau)
+const woodMat = new THREE.MeshStandardMaterial({ 
+  color: 0x3d2817, 
+  roughness: 1.0, 
+  flatShading: true 
+});
+
+// A. STUPA (Untuk Map 2 - Borobudur)
+function createStupa(x, z, scale = 1) {
+  const group = new THREE.Group();
+  
+  // Alas (Kotak bertumpuk)
+  const b1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 1.2), stoneMat); b1.position.y = 0.15;
+  const b2 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.9), stoneMat); b2.position.y = 0.45;
+  // Badan (Silinder Gembung)
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 0.6, 8), stoneMat); body.position.y = 0.9;
+  // Puncak (Cone)
+  const top = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.8, 8), stoneMat); top.position.y = 1.6;
+
+  group.add(b1, b2, body, top);
+  
+  // Aktifkan bayangan untuk semua anak mesh
+  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
+  
+  group.position.set(x, -3.8, z); // Nempel tanah
+  group.scale.set(scale, scale, scale);
+  return group;
+}
+
+// B. CANDI BENTAR / GERBANG TERBELAH (Untuk Map 3)
+function createCandiBentar(x, z, scale = 1) {
+  const group = new THREE.Group();
+  
+  function createSide(isLeft) {
+    const sideGroup = new THREE.Group();
+    // Tumpukan kotak yang makin kecil ke atas
+    for(let i=0; i<6; i++) {
+      const w = 0.8 - (i * 0.1);
+      const h = 0.4;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), stoneMat);
+      box.position.y = i * h;
+      // Geser sedikit biar rata tengah di sisi dalam (efek terbelah)
+      box.position.x = isLeft ? -w/4 : w/4; 
+      sideGroup.add(box);
+    }
+    return sideGroup;
+  }
+
+  const left = createSide(true); left.position.x = -0.5;
+  const right = createSide(false); right.position.x = 0.5;
+  
+  group.add(left, right);
+  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
+  group.position.set(x, -3.8, z);
+  group.scale.set(scale, scale*1.5, scale);
+  return group;
+}
+
+// C. PRAMBANAN STYLE (Untuk Map 4 - Tinggi Ramping)
+function createPrambanan(x, z, scale = 1) {
+  const group = new THREE.Group();
+  
+  // Kaki
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), stoneMat); base.position.y = 0.5;
+  // Badan Utama (Tinggi)
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 2, 6), stoneMat); body.position.y = 2;
+  // Atap Bertingkat
+  const roof1 = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.5, 6), stoneMat); roof1.position.y = 3.2;
+  const roof2 = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 6), stoneMat); roof2.position.y = 3.6;
+
+  group.add(base, body, roof1, roof2);
+  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
+  
+  group.position.set(x, -3.8, z);
+  group.scale.set(scale, scale, scale);
+  return group;
+}
+
+// D. MERU / PAGODA (Untuk Map 5 - Atap Ijuk Bertumpuk)
+function createMeru(x, z, scale = 1) {
+  const group = new THREE.Group();
+  
+  // Tiang dasar
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1, 0.6), stoneMat); base.position.y = 0.5;
+  group.add(base);
+
+  // Atap bertumpuk (Meru) - 5 tingkat
+  for(let i=0; i<5; i++) {
+    const size = 1.2 - (i * 0.15);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(size, 0.4, 4), woodMat); // Pakai material kayu/ijuk
+    roof.position.y = 1.2 + (i * 0.5);
+    roof.rotation.y = Math.PI / 4; // Biar miring kayak atap
+    group.add(roof);
+  }
+
+  group.traverse(o => { if(o.isMesh) { o.castShadow = true; o.receiveShadow = true; }});
+  group.position.set(x, -3.8, z);
+  group.scale.set(scale, scale, scale);
+  return group;
+}
+
+// E. OBOR (Untuk Map 1 atau Umum)
+function createObor(x, z) {
+  const group = new THREE.Group();
+  const tiang = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2, 8), new THREE.MeshStandardMaterial({color: 0x333333}));
+  tiang.position.y = 1;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.4, 0.2), new THREE.MeshStandardMaterial({color: 0x552200}));
+  head.position.y = 2;
+  
+  // Cahaya api lokal
+  const fire = new THREE.PointLight(0xffaa00, 2, 4);
+  fire.position.set(0, 2.2, 0);
+
+  group.add(tiang, head, fire);
+  group.traverse(o => { if(o.isMesh) { o.castShadow = true; }});
+  group.position.set(x, -3.8, z);
+  return group;
+}
+
+// ==========================================
+// 2. MAIN SETUP
+// ==========================================
+
 const canvas = document.getElementById('scene');
+// Enable ShadowMap pada renderer
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
 
@@ -18,6 +156,32 @@ const camera = new THREE.OrthographicCamera(
   100
 );
 camera.position.z = 10;
+
+// Lighting Setup (Pengganti Basic Light)
+// 1. Ambient Light (Cahaya dasar, default 0 biar gelap dulu)
+const ambientLight = new THREE.AmbientLight(0xffffff, 0); 
+scene.add(ambientLight);
+
+// 2. Directional Light (Matahari/Bulan pembentuk bayangan)
+const dirLight = new THREE.DirectionalLight(0xffffff, 0);
+dirLight.position.set(5, 8, 5); // Posisi cahaya dari atas kanan depan
+dirLight.castShadow = true;
+
+// Optimasi Shadow Map
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 20;
+dirLight.shadow.camera.left = -10;
+dirLight.shadow.camera.right = 10;
+dirLight.shadow.camera.top = 10;
+dirLight.shadow.camera.bottom = -10;
+scene.add(dirLight);
+
+// Variables for lighting animation
+let targetIntensity = 0;
+let targetAmbient = 0;
+
 
 const listener = new THREE.AudioListener();
 camera.add(listener);
@@ -107,11 +271,18 @@ const sfx = {
 };
 
 let selectedMap = './map/latar.jpg';
+
+// Gunakan StandardMaterial agar bisa bereaksi thd cahaya dan menerima bayangan
 const backgroundMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(20 * aspect, 20),
-  new THREE.MeshBasicMaterial({ color: 0x222222 })
+  new THREE.PlaneGeometry(24 * aspect, 24), // Lebar diperbesar agar cover area
+  new THREE.MeshStandardMaterial({ 
+    color: 0xffffff, 
+    roughness: 1, 
+    metalness: 0 
+  })
 );
-backgroundMesh.position.z = -5;
+backgroundMesh.position.z = -6; // Mundur agar ornamen 3D muat
+backgroundMesh.receiveShadow = true; // Background menerima bayangan dari ornamen
 scene.add(backgroundMesh);
 
 // Utility: safe DOM removal helper to avoid repeating try/catch removal patterns
@@ -128,10 +299,12 @@ function safeRemove(node) {
 function loadBackground(path) {
   new THREE.TextureLoader().load(path, (tex) => {
     tex.colorSpace = THREE.SRGBColorSpace;
-    backgroundMesh.material.map = tex;
-    tex.minFilter = THREE.LinearFilter;
+    
+    // Gunakan LinearFilter untuk hasil lebih smooth tanpa blur berlebihan
+    tex.minFilter = THREE.LinearMipmapLinearFilter; 
     tex.magFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false;
+    
+    tex.generateMipmaps = true;
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
     backgroundMesh.material.map = tex;
     backgroundMesh.material.needsUpdate = true;
@@ -139,13 +312,108 @@ function loadBackground(path) {
 }
 loadBackground(selectedMap);
 
+// Lantai penerima bayangan
 const floorMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(20, 0.5),
-  new THREE.MeshBasicMaterial({ color: 0x3a2a1a })
+  new THREE.PlaneGeometry(30, 5),
+  new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 1 })
 );
-floorMesh.position.y = -4;
+floorMesh.position.y = -3.8;
 floorMesh.position.z = -1;
+floorMesh.receiveShadow = true; // Lantai menerima bayangan
 scene.add(floorMesh);
+
+// ==========================================
+// 3. MAP CONFIGURATION & LOGIC
+// ==========================================
+
+const decorationGroup = new THREE.Group();
+scene.add(decorationGroup);
+
+// Konfigurasi Tiap Map (Warna Lampu + Tipe Ornamen)
+const mapConfigs = {
+  1: { // latar.jpg (Wayang/Gold)
+    lightColor: 0xffdd55, // Kuning Emas
+    intensity: 1.2,
+    ambient: 0.5,
+    ornament: 'obor'
+  },
+  2: { // latar2.png (Borobudur/Sunset)
+    lightColor: 0xffaa66, // Oranye Sore
+    intensity: 1.5,
+    ambient: 0.3,
+    ornament: 'stupa'
+  },
+  3: { // latar3.png (Candi Bentar/Siang Biru)
+    lightColor: 0xffffff, // Putih Terang
+    intensity: 1.1,
+    ambient: 0.6,
+    ornament: 'bentar'
+  },
+  4: { // latar4.png (Prambanan/Siang)
+    lightColor: 0xffffcc, // Kuning Pucat
+    intensity: 1.2,
+    ambient: 0.5,
+    ornament: 'prambanan'
+  },
+  5: { // latar5.png (Danau/Meru/Misty)
+    lightColor: 0xaaccff, // Biru Kebiruan (Misty)
+    intensity: 1.0,
+    ambient: 0.4,
+    ornament: 'meru'
+  }
+};
+
+function loadMapDecorations(mapIndex) {
+  // 1. Bersihkan ornamen lama
+  while(decorationGroup.children.length > 0){ 
+    const obj = decorationGroup.children[0];
+    decorationGroup.remove(obj);
+    if(obj.geometry) obj.geometry.dispose();
+    if(obj.material) obj.material.dispose();
+  }
+
+  const config = mapConfigs[mapIndex] || mapConfigs[1];
+
+  // 2. Set Warna Lampu
+  dirLight.color.setHex(config.lightColor);
+  
+  // 3. Set Target Intensitas (untuk animasi fade-in nanti)
+  targetIntensity = config.intensity;
+  targetAmbient = config.ambient;
+  
+  // Reset lampu ke 0 dulu biar nanti transisi halus
+  dirLight.intensity = 0;
+  ambientLight.intensity = 0;
+
+  // 4. Pasang Ornamen sesuai Map
+  if (config.ornament === 'stupa') {
+    decorationGroup.add(createStupa(-7, -2, 1.5));
+    decorationGroup.add(createStupa(-5, -4, 1.2));
+    decorationGroup.add(createStupa(6, -2, 1.5));
+    decorationGroup.add(createStupa(8, -4, 1.0));
+  } 
+  else if (config.ornament === 'bentar') {
+    decorationGroup.add(createCandiBentar(-6, -3, 1.5));
+    decorationGroup.add(createCandiBentar(6, -3, 1.5));
+  }
+  else if (config.ornament === 'prambanan') {
+    decorationGroup.add(createPrambanan(-7, -3, 1.2));
+    decorationGroup.add(createPrambanan(7, -3, 1.2));
+    // Tambah candi kecil di jauh belakang
+    const small = createPrambanan(0, -6, 0.8);
+    small.position.y = -4; // Turunin dikit
+    decorationGroup.add(small);
+  }
+  else if (config.ornament === 'meru') {
+    decorationGroup.add(createMeru(-6, -2, 1.3));
+    decorationGroup.add(createMeru(6, -2, 1.3));
+    decorationGroup.add(createMeru(-8, -4, 1.0));
+  }
+  else { // Obor / Default
+    decorationGroup.add(createObor(-5, -2));
+    decorationGroup.add(createObor(5, -2));
+  }
+}
 
 class Fighter2D {
   constructor(idleFrames, punchFrames, walkFrames, startX, facingRight, playerIndex) {
@@ -443,6 +711,10 @@ function chooseMap(idx) {
   if (idx < 1 || idx > mapPaths.length) return;
   selectedMap = mapPaths[idx - 1];
   loadBackground(selectedMap);
+  
+  // [NEW] Load Ornamen & Lighting berdasarkan map
+  loadMapDecorations(idx);
+
   // Close character selection immediately to avoid it showing during pre-fight
   closeCharacterSelectionUI();
   hideMapSelection();
@@ -969,6 +1241,62 @@ function hidePauseMenu() {
   try { updateMusicForState(); } catch (e) {}
 }
 
+// ---------- Home menu ----------
+function showHomeMenu() {
+  // Pause game jika sedang fight
+  if (gameState.status === 'fight') {
+    gameState.prevStatus = gameState.status;
+    gameState.status = 'paused';
+  }
+  
+  let el = document.getElementById('home-menu');
+  if (el) {
+    el.style.display = 'flex';
+    if (!el.dataset.wired) {
+      el.querySelector('#home-rematch')?.addEventListener('click', () => { hideHomeMenu(); rematchGame(); });
+      el.querySelector('#home-quit')?.addEventListener('click', () => { hideHomeMenu(); returnToMenu(); try { window.location.href = './index.html'; } catch(e){} });
+      el.querySelector('#home-cancel')?.addEventListener('click', () => { hideHomeMenu(); });
+      el.dataset.wired = '1';
+    }
+    return;
+  }
+}
+
+function hideHomeMenu() {
+  const el = document.getElementById('home-menu');
+  if (el) el.style.display = 'none';
+  // Resume game
+  if (gameState.status === 'paused' && gameState.prevStatus) {
+    gameState.status = gameState.prevStatus;
+  }
+}
+
+function rematchGame() {
+  // Reset game state untuk rematch
+  gameState.round = 1;
+  gameState.roundWins = [0, 0];
+  gameState.hp = [100, 100];
+  gameState.timer = 99;
+  
+  // Update score display
+  if (gameState.scoreEls[0]) gameState.scoreEls[0].textContent = '☆☆';
+  if (gameState.scoreEls[1]) gameState.scoreEls[1].textContent = '☆☆';
+  
+  // Start new match
+  startMatch();
+}
+
+// Setup home button
+const homeBtn = document.getElementById('ingame-home-btn');
+if (homeBtn) {
+  homeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (gameState.status === 'fight' || gameState.status === 'paused') {
+      showHomeMenu();
+    }
+  });
+}
+
 // ---------- End-match menu ----------
 function showEndMenu(winnerText) {
   let el = document.getElementById('end-menu');
@@ -1380,11 +1708,32 @@ function update(delta) {
   }
 }
 
+// ==========================================
+// 5. ANIMASI LIGHTING (Masukan ke tick)
+// ==========================================
+
+function updateLighting(delta) {
+  // Hanya nyalakan lampu jika sedang fight atau pause
+  if (gameState.status === 'fight' || gameState.status === 'paused') {
+    // Lerp (Interpolasi linear) agar lampu nyala pelan-pelan
+    dirLight.intensity += (targetIntensity - dirLight.intensity) * delta * 2.0;
+    ambientLight.intensity += (targetAmbient - ambientLight.intensity) * delta * 2.0;
+  } else {
+    // Jika di menu, redupkan
+    dirLight.intensity += (0 - dirLight.intensity) * delta * 5.0;
+    ambientLight.intensity += (0.5 - ambientLight.intensity) * delta * 2.0; // Biar menu tetep kelihatan
+  }
+}
+
 const clock = new THREE.Clock();
 function tick() {
   const delta = clock.getDelta();
   update(delta);
   updateSparks(delta);
+  
+  // [NEW] Update lighting animation
+  updateLighting(delta);
+
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }

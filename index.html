@@ -25,6 +25,7 @@
       <div id="loading-text"></div>
       <div style="margin:18px 0 0; text-align:center;">
         <button id="start-btn" disabled aria-label="Start (loading)"></button>
+        <button id="home-btn" style="display:none;">🏠 MENU</button>
       </div>
     </div>
     <!-- map selection is created dynamically at runtime to avoid DOM/z-index conflicts -->
@@ -54,6 +55,8 @@
           <div class="hp-frame"><div id="hp2" class="hp-bar"></div></div>
         </div>
       </div>
+      <!-- Home Button -->
+      <button id="ingame-home-btn" class="home-btn" title="Menu">🏠</button>
     </div>
 
     <!-- Removed Wayang Arena main menu; using the old loading.png start screen instead -->
@@ -71,6 +74,16 @@
         <button id="pause-continue">Continue</button>
         <button id="pause-select">Select Character</button>
         <button id="pause-exit">Exit to Main Menu</button>
+      </div>
+    </div>
+
+    <!-- Home Menu Popup -->
+    <div id="home-menu" class="overlay-center" style="display:none;">
+      <div class="overlay-card">
+        <h2>MENU</h2>
+        <button id="home-rematch" class="btn-primary">🔄 Rematch</button>
+        <button id="home-quit" class="btn-secondary">🚪 Quit to Main Menu</button>
+        <button id="home-cancel" class="btn-cancel">✖ Cancel</button>
       </div>
     </div>
 
